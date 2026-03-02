@@ -1,0 +1,152 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+RUST_DIR="$PROJECT_ROOT/projects/rust"
+DIST_DIR="$PROJECT_ROOT/dist/bin"
+
+# All supported targets
+TARGETS=(
+  "x86_64-unknown-linux-gnu"
+  "aarch64-unknown-linux-gnu"
+  "x86_64-apple-darwin"
+  "aarch64-apple-darwin"
+  "x86_64-pc-windows-msvc"
+  "aarch64-pc-windows-msvc"
+)
+
+# Targets that can be cross-compiled from Linux using `cross` (Docker-based).
+# macOS and Windows targets require native builds or CI runners with the
+# appropriate SDKs (Apple SDK, MSVC).
+CROSS_TARGETS=(
+  "x86_64-unknown-linux-gnu"
+  "aarch64-unknown-linux-gnu"
+)
+
+is_cross_target() {
+  local target="$1"
+  for ct in "${CROSS_TARGETS[@]}"; do
+    [[ "$ct" == "$target" ]] && return 0
+  done
+  return 1
+}
+
+# Map Rust target triple to output filename components
+target_to_output() {
+  local target="$1"
+  case "$target" in
+    x86_64-unknown-linux-gnu)   echo "linux x86_64 so lib";;
+    aarch64-unknown-linux-gnu)  echo "linux aarch64 so lib";;
+    x86_64-apple-darwin)        echo "macos x86_64 dylib lib";;
+    aarch64-apple-darwin)       echo "macos aarch64 dylib lib";;
+    x86_64-pc-windows-msvc)     echo "windows x86_64 dll";;
+    aarch64-pc-windows-msvc)    echo "windows aarch64 dll";;
+  esac
+}
+
+# Determine build tools
+HAS_CROSS=false
+if command -v cross &>/dev/null; then
+  HAS_CROSS=true
+  echo "Found 'cross' for Docker-based cross-compilation"
+fi
+
+# Allow filtering targets via command-line args
+if [[ $# -gt 0 ]]; then
+  SELECTED_TARGETS=("$@")
+  echo "Building selected targets only: ${SELECTED_TARGETS[*]}"
+else
+  SELECTED_TARGETS=("${TARGETS[@]}")
+fi
+
+echo ""
+echo "Output directory: dist/bin/"
+echo "Targets: ${#SELECTED_TARGETS[@]}"
+echo ""
+
+mkdir -p "$DIST_DIR"
+
+SUCCEEDED=0
+FAILED=0
+SKIPPED=0
+FAILED_TARGETS=()
+SKIPPED_TARGETS=()
+
+for target in "${SELECTED_TARGETS[@]}"; do
+  read -r os arch ext prefix <<< "$(target_to_output "$target")"
+  artifact="mssqlts-${os}-${arch}.${ext}"
+
+  echo "=== Building: ${target} ==="
+  echo "  -> ${artifact}"
+
+  # Choose build command for this target
+  if is_cross_target "$target" && [[ "$HAS_CROSS" == true ]]; then
+    BUILD_CMD="cross"
+  elif is_cross_target "$target" || [[ "$(uname -s)-$(uname -m)" == *"${os}"* ]]; then
+    BUILD_CMD="cargo"
+    # Ensure target is installed for cargo
+    rustup target add "$target" 2>/dev/null || true
+  else
+    echo "  SKIP: $target requires a native $os build environment (no cross image available)"
+    SKIPPED=$((SKIPPED + 1))
+    SKIPPED_TARGETS+=("$target")
+    echo ""
+    continue
+  fi
+
+  echo "  Using: $BUILD_CMD"
+
+  # Build
+  if $BUILD_CMD build --release --target "$target" --manifest-path "$RUST_DIR/Cargo.toml" 2>&1; then
+    # Determine the Rust output filename
+    if [[ -n "${prefix:-}" ]]; then
+      rust_output="$RUST_DIR/target/$target/release/${prefix}mssqlts.${ext}"
+    else
+      rust_output="$RUST_DIR/target/$target/release/mssqlts.${ext}"
+    fi
+
+    if [[ -f "$rust_output" ]]; then
+      cp "$rust_output" "$DIST_DIR/$artifact"
+      echo "  OK: dist/bin/${artifact} ($(du -h "$DIST_DIR/$artifact" | cut -f1))"
+      SUCCEEDED=$((SUCCEEDED + 1))
+    else
+      echo "  WARN: Build succeeded but output not found at $rust_output"
+      FAILED=$((FAILED + 1))
+      FAILED_TARGETS+=("$target")
+    fi
+  else
+    echo "  FAIL: Build failed for $target"
+    FAILED=$((FAILED + 1))
+    FAILED_TARGETS+=("$target")
+  fi
+  echo ""
+done
+
+echo "=== Summary ==="
+echo "  Succeeded: ${SUCCEEDED}/${#SELECTED_TARGETS[@]}"
+if [[ $SKIPPED -gt 0 ]]; then
+  echo "  Skipped:   ${SKIPPED}/${#SELECTED_TARGETS[@]} (need native build environment)"
+  for t in "${SKIPPED_TARGETS[@]}"; do
+    echo "    - $t"
+  done
+fi
+if [[ $FAILED -gt 0 ]]; then
+  echo "  Failed:    ${FAILED}/${#SELECTED_TARGETS[@]}"
+  for t in "${FAILED_TARGETS[@]}"; do
+    echo "    - $t"
+  done
+fi
+
+echo ""
+if [[ $SUCCEEDED -gt 0 ]]; then
+  echo "Built binaries:"
+  ls -lh "$DIST_DIR/"
+fi
+
+# Exit with failure if nothing was built
+if [[ $SUCCEEDED -eq 0 ]]; then
+  echo ""
+  echo "ERROR: No targets built successfully."
+  exit 1
+fi

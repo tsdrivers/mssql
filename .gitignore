@@ -1,0 +1,28 @@
+target/
+node_modules/
+dist/
+native/
+.cache/
+*.so
+*.dylib
+*.dll
+
+# IDE
+.vscode/
+.idea/
+
+# local test output
+.bin/
+
+# VitePress build output
+docs/.vitepress/dist/
+docs/.vitepress/cache/
+
+# Generated API docs (regenerated from TypeDoc)
+docs/api/
+
+# Deno lockfile
+deno.lock
+
+# local env overrides
+.env

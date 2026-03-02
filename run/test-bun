@@ -1,0 +1,67 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+# Source .env if it exists
+if [[ -f "$PROJECT_ROOT/.env" ]]; then
+  echo "Loading .env..."
+  set -a
+  source "$PROJECT_ROOT/.env"
+  set +a
+fi
+
+# Defaults
+MSSQL_HOST_PORT="${MSSQL_HOST_PORT:-14330}"
+MSSQL_SA_PASSWORD="${MSSQL_SA_PASSWORD:-DevPassword1!}"
+MSSQL_SA_CONNECTION="${MSSQL_SA_CONNECTION:-Server=localhost,${MSSQL_HOST_PORT};Database=master;User Id=sa;Password=${MSSQL_SA_PASSWORD};TrustServerCertificate=true;}"
+MSSQL_SKIP_DOCKER="${MSSQL_SKIP_DOCKER:-0}"
+MSSQL_SKIP_BUILD="${MSSQL_SKIP_BUILD:-0}"
+
+# Step 1: Docker (clean + dbup)
+if [[ "$MSSQL_SKIP_DOCKER" != "1" ]]; then
+  echo ""
+  echo "=== Docker: clean + dbup ==="
+  export MSSQL_HOST_PORT
+  export MSSQL_SA_PASSWORD
+  "$SCRIPT_DIR/clean"
+  "$SCRIPT_DIR/dbup"
+else
+  echo ""
+  echo "=== Skipping Docker (MSSQL_SKIP_DOCKER=1) ==="
+fi
+
+# Step 2: Build native library
+if [[ "$MSSQL_SKIP_BUILD" != "1" ]]; then
+  echo ""
+  echo "=== Building native library ==="
+  "$SCRIPT_DIR/bin"
+else
+  echo ""
+  echo "=== Skipping build (MSSQL_SKIP_BUILD=1) ==="
+fi
+
+# Step 3: Database setup
+echo ""
+echo "=== Setting up test database ==="
+export MSSQL_SA_CONNECTION
+MSSQL_TEST_CONNECTION="$(deno run -A "$PROJECT_ROOT/run/scripts/db-setup.ts")"
+
+# Step 4: Run tests
+export MSSQL_TEST_ENABLED=1
+export MSSQL_TEST_CONNECTION
+
+BUN_TEST_DIR="$PROJECT_ROOT/projects/test/integration/bun"
+
+echo ""
+echo "=== Running Bun integration tests ==="
+bun test "$BUN_TEST_DIR"
+
+# Step 5: Teardown test database
+echo ""
+echo "=== Tearing down test database ==="
+deno run -A "$PROJECT_ROOT/run/scripts/db-teardown.ts"
+
+echo ""
+echo "=== All Bun tests passed ==="

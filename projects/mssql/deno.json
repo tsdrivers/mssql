@@ -1,0 +1,8 @@
+{
+  "name": "@tracker1/mssql",
+  "version": "0.1.0",
+  "exports": {
+    ".": "./mod.ts",
+    "./install": "./install.ts"
+  }
+}

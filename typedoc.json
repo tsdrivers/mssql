@@ -1,0 +1,15 @@
+{
+  "name": "mssql-ts-ffi",
+  "entryPoints": ["projects/mssql/core/mod.ts"],
+  "tsconfig": "tsconfig.docs.json",
+  "plugin": ["typedoc-plugin-markdown", "typedoc-vitepress-theme"],
+  "out": "docs/api",
+  "excludePrivate": true,
+  "excludeInternal": true,
+  "excludeExternals": true,
+  "readme": "none",
+  "githubPages": false,
+  "disableSources": false,
+  "categorizeByGroup": true,
+  "cleanOutputDir": true
+}

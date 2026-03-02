@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+cd "$PROJECT_ROOT"
+
+# Ensure dependencies are installed
+if [[ ! -d "node_modules/vitepress" ]]; then
+  echo "Installing dependencies..."
+  deno install
+fi
+
+# Generate API docs from TypeDoc, then start VitePress dev server
+echo "Generating API reference from source..."
+deno run -A npm:typedoc
+
+echo ""
+echo "Starting VitePress dev server..."
+deno run -A npm:vitepress dev docs

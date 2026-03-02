@@ -1,0 +1,70 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+RUST_DIR="$PROJECT_ROOT/projects/rust"
+BIN_DIR="$PROJECT_ROOT/.bin"
+
+# Detect OS
+case "$(uname -s)" in
+  Linux*)   OS="linux";   LIB_PREFIX="lib"; EXT="so";    DBG_EXT="so.debug";;
+  Darwin*)  OS="macos";   LIB_PREFIX="lib"; EXT="dylib"; DBG_EXT="dylib.dSYM";;
+  MINGW*|MSYS*|CYGWIN*) OS="windows"; LIB_PREFIX=""; EXT="dll"; DBG_EXT="pdb";;
+  *)        echo "Unsupported OS: $(uname -s)"; exit 1;;
+esac
+
+# Detect arch
+case "$(uname -m)" in
+  x86_64|amd64)  ARCH="x86_64";;
+  aarch64|arm64)  ARCH="aarch64";;
+  *)              echo "Unsupported architecture: $(uname -m)"; exit 1;;
+esac
+
+ARTIFACT="mssqlts-${OS}-${ARCH}.${EXT}"
+DBG_ARTIFACT="mssqlts-${OS}-${ARCH}.${DBG_EXT}"
+RUST_OUTPUT="${RUST_DIR}/target/release/${LIB_PREFIX}mssqlts.${EXT}"
+
+echo "Building native library (release, opt-level=z)..."
+echo "  OS:   ${OS}"
+echo "  Arch: ${ARCH}"
+echo "  Output: .bin/${ARTIFACT}"
+echo ""
+
+# Build release (debuginfo included, not stripped — we split it out below)
+cargo build --release --manifest-path "$RUST_DIR/Cargo.toml"
+
+# Copy to .bin/
+mkdir -p "$BIN_DIR"
+cp "$RUST_OUTPUT" "$BIN_DIR/$ARTIFACT"
+
+# Extract debuginfo into a separate file, then strip the library
+case "$OS" in
+  linux)
+    objcopy --only-keep-debug "$BIN_DIR/$ARTIFACT" "$BIN_DIR/$DBG_ARTIFACT"
+    strip --strip-unneeded "$BIN_DIR/$ARTIFACT"
+    objcopy --add-gnu-debuglink="$BIN_DIR/$DBG_ARTIFACT" "$BIN_DIR/$ARTIFACT"
+    ;;
+  macos)
+    dsymutil "$BIN_DIR/$ARTIFACT" -o "$BIN_DIR/$DBG_ARTIFACT"
+    strip -x "$BIN_DIR/$ARTIFACT"
+    ;;
+  windows)
+    # MSVC builds produce a .pdb alongside the .dll automatically
+    RUST_PDB="${RUST_DIR}/target/release/mssqlts.pdb"
+    if [[ -f "$RUST_PDB" ]]; then
+      cp "$RUST_PDB" "$BIN_DIR/$DBG_ARTIFACT"
+    fi
+    ;;
+esac
+
+echo ""
+echo "Done: .bin/${ARTIFACT}"
+ls -lh "$BIN_DIR/$ARTIFACT"
+echo ""
+echo "Debug: .bin/${DBG_ARTIFACT}"
+if [[ "$OS" == "macos" ]]; then
+  du -sh "$BIN_DIR/$DBG_ARTIFACT"
+else
+  ls -lh "$BIN_DIR/$DBG_ARTIFACT" 2>/dev/null || echo "  (not found)"
+fi

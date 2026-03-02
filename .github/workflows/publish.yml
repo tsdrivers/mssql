@@ -1,0 +1,114 @@
+name: Publish
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+  id-token: write
+
+jobs:
+  build-native:
+    name: Build ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+            artifact: mssqlts-linux-x86_64.so
+            lib: libmssqlts.so
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-latest
+            artifact: mssqlts-linux-aarch64.so
+            lib: libmssqlts.so
+            cross: true
+          - target: x86_64-apple-darwin
+            os: macos-latest
+            artifact: mssqlts-macos-x86_64.dylib
+            lib: libmssqlts.dylib
+          - target: aarch64-apple-darwin
+            os: macos-latest
+            artifact: mssqlts-macos-aarch64.dylib
+            lib: libmssqlts.dylib
+          - target: x86_64-pc-windows-msvc
+            os: windows-latest
+            artifact: mssqlts-windows-x86_64.dll
+            lib: mssqlts.dll
+          - target: aarch64-pc-windows-msvc
+            os: windows-latest
+            artifact: mssqlts-windows-aarch64.dll
+            lib: mssqlts.dll
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: projects/rust -> target
+
+      - name: Install cross-compilation tools
+        if: matrix.cross
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu
+
+      - name: Build release
+        working-directory: projects/rust
+        env:
+          CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: aarch64-linux-gnu-gcc
+        run: cargo build --release --target ${{ matrix.target }}
+
+      - name: Rename artifact
+        shell: bash
+        run: |
+          cp projects/rust/target/${{ matrix.target }}/release/${{ matrix.lib }} ${{ matrix.artifact }}
+
+      - name: Upload artifact to release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload ${{ github.event.release.tag_name }} ${{ matrix.artifact }}
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: ${{ matrix.artifact }}
+
+  publish-jsr:
+    name: Publish to JSR
+    needs: build-native
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Publish @tracker1/mssql
+        run: deno publish --allow-dirty
+        working-directory: projects/mssql
+
+  publish-npm:
+    name: Publish to npm
+    needs: build-native
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Publish @tracker1/mssql
+        working-directory: projects/mssql
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish --access public
