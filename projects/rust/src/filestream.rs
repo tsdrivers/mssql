@@ -154,6 +154,13 @@ mod platform {
         }
     }
 
+    // HANDLE is a Windows kernel object. Transferring ownership between threads
+    // is safe — Win32 file handles are reference-counted by the kernel and can
+    // be used from any thread. All access in this crate is serialized through
+    // the Mutex<HashMap<u64, FilestreamHandle>> in lib.rs, so there is no risk
+    // of concurrent ReadFile/WriteFile on the same handle.
+    unsafe impl Send for FilestreamHandle {}
+
     pub fn is_available() -> bool {
         get_open_fn().is_ok()
     }
