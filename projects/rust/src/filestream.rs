@@ -11,12 +11,12 @@ mod platform {
     use crate::error::{MssqlError, Result};
 
     type OpenSqlFilestreamFn = unsafe extern "system" fn(
-        FilestreamPath: PCSTR,
-        DesiredAccess: u32,
-        OpenOptions: u32,
-        FilestreamTransactionContext: *const u8,
-        FilestreamTransactionContextLength: u32,
-        AllocationSize: *const i64,
+        filestream_path: PCSTR,
+        desired_access: u32,
+        open_options: u32,
+        filestream_transaction_context: *const u8,
+        filestream_transaction_context_length: u32,
+        allocation_size: *const i64,
     ) -> HANDLE;
 
     const SQL_FILESTREAM_READ: u32 = 0;
