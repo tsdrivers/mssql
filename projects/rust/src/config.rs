@@ -69,16 +69,7 @@ impl NormalizedConfig {
                 Credentials::sql_server(full_user, password.clone())
             }
             AuthConfig::Windows => {
-                #[cfg(not(windows))]
-                return Err(MssqlError::Config(
-                    "Windows authentication is only available on Windows".into(),
-                ));
-                #[cfg(windows)]
-                {
-                    return Err(MssqlError::Config(
-                        "Windows authentication not yet supported in mssql-client driver".into(),
-                    ));
-                }
+                Credentials::integrated_sspi(self.server.clone(), self.port)
             }
             AuthConfig::AzureAd { username, password } => {
                 // Azure AD password auth maps to SQL auth for now
