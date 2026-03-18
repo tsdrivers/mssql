@@ -14,25 +14,78 @@ import type { RuntimeFFI } from "../core/runtime.ts";
 // deno-lint-ignore no-explicit-any
 let _koffi: any = null;
 
+/**
+ * Try to load koffi by searching multiple locations:
+ * 1. NODE_PATH directories (if set)
+ * 2. Walk up from cwd checking each `node_modules/koffi`
+ *
+ * Uses `createRequire` which respects CJS resolution from arbitrary
+ * locations — more reliable than ESM `import()` which only resolves
+ * from the calling module's location.
+ */
+// deno-lint-ignore no-explicit-any
+async function tryLoadKoffiFromParents(): Promise<any> {
+  const { createRequire } = await import("node:module");
+  const { resolve, dirname, delimiter } = await import("node:path");
+  const { existsSync } = await import("node:fs");
+
+  // Check NODE_PATH directories first
+  const nodePath = process.env.NODE_PATH;
+  if (nodePath) {
+    for (const dir of nodePath.split(delimiter)) {
+      const candidate = resolve(dir, "koffi");
+      if (existsSync(candidate)) {
+        const req = createRequire(resolve(dir, "..", "package.json"));
+        try {
+          return req("koffi");
+        } catch { /* try next */ }
+      }
+    }
+  }
+
+  // Walk up from cwd
+  let dir = process.cwd();
+  const seen = new Set<string>();
+  while (dir && !seen.has(dir)) {
+    seen.add(dir);
+    const candidate = resolve(dir, "node_modules", "koffi");
+    if (existsSync(candidate)) {
+      const req = createRequire(resolve(dir, "package.json"));
+      return req("koffi");
+    }
+    const parent = dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  return null;
+}
+
 // deno-lint-ignore no-explicit-any
 async function getKoffi(): Promise<any> {
   if (!_koffi) {
+    // 1. Try standard ESM import (works when koffi is in node_modules
+    //    relative to this module or an ancestor)
     try {
       const mod = await import("koffi");
-      // koffi is CJS; ESM dynamic import wraps it as { default: ... }
       _koffi = mod.default ?? mod;
     } catch {
-      // koffi not installed — attempt on-demand install
-      try {
-        const { execSync } = await import("node:child_process");
-        execSync("npm install koffi --no-save", { stdio: "pipe" });
-        const mod = await import("koffi");
-        _koffi = mod.default ?? mod;
-      } catch {
-        throw new Error(
-          "@tsdrivers/mssql: could not load or install koffi (required for Node.js FFI).\n" +
-            "Install it manually:\n  npm install koffi",
-        );
+      // 2. Walk up from cwd looking for node_modules/koffi
+      const fromParents = await tryLoadKoffiFromParents();
+      if (fromParents) {
+        _koffi = fromParents;
+      } else {
+        // 3. Last resort: attempt on-demand install
+        try {
+          const { execSync } = await import("node:child_process");
+          execSync("npm install koffi --no-save", { stdio: "pipe" });
+          const mod = await import("koffi");
+          _koffi = mod.default ?? mod;
+        } catch {
+          throw new Error(
+            "@tsdrivers/mssql: could not load or install koffi (required for Node.js FFI).\n" +
+              "Install it manually:\n  npm install koffi",
+          );
+        }
       }
     }
   }

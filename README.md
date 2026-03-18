@@ -32,11 +32,14 @@ Full documentation is available at
 - UTF-8 collation helpers
 - Transparent native binary download (postinstall for Node/Bun, install script
   for Deno)
-- FILESTREAM support (Windows only, requires
-  [Microsoft OLE DB Driver 19][oledb])
-- Zero native dependencies except FILESTREAM on Windows
+- FILESTREAM support (Windows only)
+- Windows Authentication (SSPI) without credentials on Windows, Kerberos on
+  Linux/macOS
 
-[oledb]: https://learn.microsoft.com/en-us/sql/connect/oledb/download-oledb-driver-for-sql-server?view=sql-server-ver17
+**Requires**: [Microsoft ODBC Driver 18 for SQL Server][odbc-driver] on the
+target system.
+
+[odbc-driver]: https://learn.microsoft.com/en-us/sql/connect/odbc/download-odbc-driver-for-sql-server
 
 ## Package
 
@@ -49,6 +52,22 @@ Full documentation is available at
 
 A single package supports Deno, Node.js 22+, and Bun. The correct FFI adapter
 (`Deno.dlopen`, `koffi`, or `bun:ffi`) is selected automatically at runtime.
+
+## Prerequisites
+
+[Microsoft ODBC Driver 18 for SQL Server][odbc-driver] must be installed:
+
+```sh
+# Windows
+winget install Microsoft.ODBC.18
+
+# macOS
+brew install microsoft/mssql-release/msodbcsql18
+
+# Debian / Ubuntu
+curl https://packages.microsoft.com/keys/microsoft.asc | sudo tee /etc/apt/trusted.gpg.d/microsoft.asc
+sudo apt-get update && sudo apt-get install -y msodbcsql18
+```
 
 ## Installation
 
@@ -137,7 +156,7 @@ await tx.commit();
 const id = mssql.newCOMB();
 
 // FILESTREAM (Windows only)
-await using fs = cn.openFilestream(path, txContext, "read");
+const readable = cn.fs.open(path, txContext, "read");
 const data = await fs.readAll();
 ```
 
@@ -173,18 +192,18 @@ mssql://localhost/mydb?instanceName=SQLEXPRESS
 ## Architecture
 
 ```
-Rust cdylib (mssql-client + mssql-driver-pool + tokio) -> C ABI -> FFI boundary
+Rust cdylib (odbc-api + Microsoft ODBC Driver 18) -> C ABI -> FFI boundary
   | u64 handle IDs, JSON strings
 Deno.dlopen / bun:ffi / koffi -> RuntimeFFI interface -> Core TS classes
 ```
 
-The Rust layer handles all SQL Server communication using
-[mssql-client](https://crates.io/crates/mssql-client) (pure Rust TDS
-implementation with rustls, supporting TDS 7.3–8.0), [tokio](https://tokio.rs)
-for async I/O, and
-[mssql-driver-pool](https://crates.io/crates/mssql-driver-pool) for connection
-pooling. It exposes a C ABI with opaque `u64` handle IDs and JSON serialization
-across the FFI boundary.
+The Rust layer communicates with SQL Server via the
+[Microsoft ODBC Driver 18 for SQL Server][odbc-driver] through the
+[odbc-api](https://crates.io/crates/odbc-api) crate. This is the same driver
+that .NET's `Microsoft.Data.SqlClient` uses, providing native support for all
+authentication methods (SQL, Windows/SSPI, Kerberos, Azure AD). The Rust cdylib
+exposes a C ABI with opaque `u64` handle IDs and JSON serialization across the
+FFI boundary.
 
 The core TypeScript layer is runtime-agnostic — connection/pool classes, query
 serialization, config parsing, and binary resolution are shared by all three

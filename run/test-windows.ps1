@@ -103,7 +103,7 @@ if (-not $SkipBuild) {
     Write-Host ""
     Write-Host "=== Skipping build (-SkipBuild) ===" -ForegroundColor Yellow
     if (-not (Test-Path (Join-Path $binDir $artifact))) {
-        throw "No binary found at .bin\$artifact — run without -SkipBuild first."
+        throw "No binary found at .bin\$artifact - run without -SkipBuild first."
     }
 }
 

@@ -329,20 +329,170 @@ two new exports: `diagnosticInfo()` and `setDebug()` (from Phase 13.1/13.2).
     in-memory read/write
 - [x] Removed placeholder FILESTREAM tests from `windows_test.ts` files
 
-## Phase 15 — Outstanding Items
+## Phase 15 — ODBC Driver Migration
 
-- [ ] Windows CI: SSPI + FILESTREAM tests
+Replace the Rust TDS-protocol crate (`mssql-client` + `mssql-driver-pool`) with
+the Microsoft ODBC Driver for SQL Server via the `odbc-api` Rust crate. This
+eliminates the incomplete upstream SSPI/Windows-auth story and leverages
+Microsoft's own driver for TDS, auth, and encryption — the same driver that the
+.NET `Microsoft.Data.SqlClient` uses under the covers.
+
+**Runtime dependency**: Microsoft ODBC Driver 18 (or 17) for SQL Server must be
+installed on the target system:
+- Windows: `winget install Microsoft.ODBC.18`
+- macOS: `brew install microsoft/mssql-release/msodbcsql18`
+- Linux: `msodbcsql18` package from Microsoft's repo
+
+**TypeScript changes**: None. The `RuntimeFFI` interface, `NormalizedConfig` JSON
+shape, and all 24 FFI symbol signatures remain identical.
+
+### 15.0 — Cargo.toml + dependencies ✅
+
+- [x] Remove `mssql-client`, `mssql-driver-pool` dependencies
+- [x] Add `odbc-api = "8"` dependency
+- [x] Remove `tokio` (no longer needed — ODBC is synchronous)
+- [x] Keep `serde`, `serde_json`, `lazy_static`, `uuid`, `chrono`, `base64`
+- [x] Keep Windows `windows` crate for FILESTREAM
+
+### 15.1 — config.rs (ODBC connection string builder) ✅
+
+- [x] Remove `to_client_config()` (mssql-client specific)
+- [x] Remove `to_pool_config()` (mssql-driver-pool specific)
+- [x] Add `to_odbc_connection_string()` — builds ODBC connection string
+- [x] Auth mapping:
+  - `sql` → `UID=user;PWD=pass;`
+  - `ntlm` → `UID=domain\user;PWD=pass;`
+  - `windows` → `Trusted_Connection=yes;`
+  - `azure_ad` → `Authentication=ActiveDirectoryPassword;UID=user;PWD=pass;`
+  - `azure_ad_token` → `AccessToken=token;`
+- [x] Driver detection: try ODBC Driver 18 → fall back to 17
+- [x] Map `packet_size`, `connect_timeout_ms`, `app_name`, `encrypt`,
+      `trust_server_certificate`, `instance_name`
+- [x] Keep `dedup_key()` and unit tests unchanged
+
+### 15.2 — error.rs (ODBC error mapping) ✅
+
+- [x] Remove `From<mssql_client::Error>` and `From<mssql_driver_pool::PoolError>`
+- [x] Add `From<odbc_api::Error>` with SQLSTATE-based classification
+- [x] Pool errors via local `MssqlError::Pool` variant
+
+### 15.3 — pool.rs (simple ODBC connection pool) ✅
+
+- [x] Implement `OdbcPool` with idle `VecDeque<Connection>`, min/max/idle_timeout
+- [x] `get()` — take from idle queue or create new (block up to connect_timeout)
+- [x] `put()` — return to idle queue (drop if over capacity)
+- [x] `status()` — total/idle/in_use/max for diagnostics
+- [x] `evict()` — drop connection without returning to pool
+- [x] `create_single()` for bare (non-pooled) connections
+
+### 15.4 — handle.rs (ODBC connection wrappers) ✅
+
+- [x] Global `OnceLock<Environment>` for ODBC environment singleton
+- [x] Replace `MssqlClient` with `OdbcConn` enum wrapping
+      `odbc_api::Connection<'static>` (Pooled / Bare variants)
+- [x] `PoolHandle` wraps `OdbcPool` instead of `mssql_driver_pool::Pool`
+- [x] Pool dedup, refcounting, diagnostics unchanged
+
+### 15.5 — query.rs (ODBC query execution) ✅
+
+- [x] Remove `mssql_client::{Row, SqlValue, ToSql}` imports
+- [x] `execute_query()` — ODBC execute + `TextRowSet` cursor reads → JSON array
+- [x] `execute_nonquery()` — ODBC execute + `@@ROWCOUNT` → JSON
+- [x] `execute_exec()` — OUTPUT param batch via `simple_execute` pattern
+- [x] `execute_query_stream()` — ODBC execute, collect rows as `Vec<Value>`
+- [x] `row_to_json()` removed — rows serialized inline from ODBC cursor buffers
+- [x] `param_to_sql_value()` / `sql_value_to_literal()` replaced with
+      `param_to_literal()` (no external dependency)
+- [x] Named param rewriting and unit tests unchanged
+- [x] `simple_execute()` for transaction SQL statements
+
+### 15.6 — stream.rs (pre-serialized JSON rows) ✅
+
+- [x] `RowCursor` stores `VecDeque<serde_json::Value>` instead of `VecDeque<Row>`
+- [x] `next_row()` returns `Option<serde_json::Value>` (already JSON)
+
+### 15.7 — bulk.rs (minimal changes) ✅
+
+- [x] Replace `Client<Ready>` parameter with `&Connection<'static>`
+- [x] Keep INSERT VALUES batch approach unchanged
+
+### 15.8 — lib.rs (FFI wiring) ✅
+
+- [x] All 24 FFI symbol signatures unchanged
+- [x] Remove tokio runtime — all calls are synchronous via ODBC
+- [x] `with_conn()` helper for take-and-replace pattern
+- [x] Transaction SQL statements via `simple_execute()`
+- [x] `mssql_stream_next` returns pre-serialized JSON (no `row_to_json` call)
+- [x] Pool release returns ODBC connection to pool's idle queue
+
+### 15.9 — filestream.rs + debug.rs ✅
+
+- [x] `debug.rs` — no driver dependency, unchanged
+- [x] `filestream.rs` — migrated from `msoledbsql.dll` to `msodbcsql18.dll`
+      for `OpenSqlFilestream`. The ODBC driver exports this function, so no
+      additional OLE DB Driver install is needed. Falls back to ODBC Driver 17.
+
+### 15.10 — Integration testing ✅
+
+All 283 tests pass on Windows Server 2025 with SQL Server 2025, Windows auth
+(SSPI), ODBC Driver 18, FILESTREAM enabled:
+
+- [x] `run/test-windows.ps1` — full pipeline (db-setup, unit, integration,
+      teardown) passes across all three runtimes
+- [x] Deno 2.7: 172 unit tests + 37 integration tests (209 total)
+- [x] Node.js 24: 37 integration tests (koffi FFI)
+- [x] Bun 1.3: 37 integration tests (bun:ffi)
+- [x] Verify: Windows auth (SSPI), FILESTREAM (node:stream + web streams),
+      transactions, streaming, bulk insert, stored procedures with OUTPUT params,
+      pool dedup/refcounting, binary data round-trips, execute row counts
+- [x] Node.js koffi resolver: walk up from cwd + NODE_PATH for reliable
+      resolution in monorepo / nested test layouts
+
+### 15.11 — Build + test verification ✅
+
+- [x] `cargo build --release` — zero errors, zero warnings
+- [x] `cargo test` — 19/19 Rust unit tests pass
+- [x] Binary copied to `.bin/mssqlts-windows-x86_64.dll`
+
+## Phase 16 — Outstanding Items
+
+- [x] Windows: SSPI + FILESTREAM tests verified locally (all 283 tests pass
+      across Deno, Node.js, Bun on Windows Server 2025 + SQL Server 2025)
+- [ ] Windows CI: add `run/test-windows.ps1` to GitHub Actions (Windows runner)
 - [ ] Add Node/Bun integration jobs to ci.yml
 - [ ] README generation script (per-package READMEs from main README)
 - [ ] Build/bundle pipeline for JSR + npm publishing
 - [ ] Publish unified `@tsdrivers/mssql` to JSR and npm
 
-## Phase 16 - SQL Server 2025 Readiness (future)
+## Phase 17 — VARBINARY(MAX) Blob Streaming (future)
 
-With `mssql-client` as the driver, these become easier to add later:
+Cross-platform alternative to FILESTREAM for reading/writing large binary data
+in chunks without loading the entire value into memory.
 
-- [ ] Native JSON data type support (new TDS type token in `tds-protocol` crate)
-- [ ] TDS 8.0 strict mode (already supported by `mssql-client`)
-- [ ] Native VECTOR data type (falls back to JSON on older TDS versions
-      automatically, but binary support needs TDS 7.4+ token handling)
+### Read: chunked `SQLGetData`
+
+- [ ] New FFI: `mssql_blob_read_open(conn_id, sql_json)` → cursor_id
+      Executes a query expected to return a single VARBINARY(MAX) column.
+      Uses `CursorRow::get_binary` (ODBC `SQLGetData`) to read in chunks.
+- [ ] New FFI: `mssql_blob_read_chunk(cursor_id, max_bytes)` → base64 or null
+- [ ] New FFI: `mssql_blob_read_close(cursor_id)`
+- [ ] TS API: `cn.readBlob(sql, params?)` → `ReadableStream<Uint8Array>`
+
+### Write: `.WRITE` append pattern
+
+- [ ] New FFI: `mssql_blob_write(conn_id, sql_json, data_base64)` → bytes_written
+      Executes `UPDATE T SET col.WRITE(@chunk, NULL, NULL) WHERE ...` to append
+      a chunk to an existing VARBINARY(MAX) column.
+- [ ] TS API: `cn.writeBlob(table, column, where, opts?)` → `WritableStream<Uint8Array>`
+      Wraps repeated `.WRITE` appends into a standard `WritableStream`.
+
+### Documentation
+
+- [ ] Guide page: `docs/guide/blob-streaming.md`
+- [ ] Comparison: blob streaming vs FILESTREAM vs in-memory query
+
+## Phase 18 — SQL Server 2025 Readiness (future)
+
+- [ ] Native JSON data type support
+- [ ] Native VECTOR data type
 - [ ] Add SQL Server 2025 Express to CI test matrix alongside 2022

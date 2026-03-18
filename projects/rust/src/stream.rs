@@ -1,19 +1,17 @@
 use std::collections::VecDeque;
 
-use mssql_client::Row;
-
 /// A buffered cursor for streaming query results row-by-row across FFI.
 ///
-/// Unlike the tiberius driver which used an mpsc channel, mssql-client's
-/// QueryStream buffers all rows upfront. We store the rows and column
-/// metadata, then serialize to JSON one row at a time on each stream_next call.
+/// With the ODBC backend, rows are pre-serialized to JSON values during
+/// query execution. The cursor stores these and returns them one at a time
+/// via `next_row()`.
 pub struct RowCursor {
-    rows: VecDeque<Row>,
+    rows: VecDeque<serde_json::Value>,
     done: bool,
 }
 
 impl RowCursor {
-    pub fn new(rows: Vec<Row>) -> Self {
+    pub fn new(rows: Vec<serde_json::Value>) -> Self {
         Self {
             rows: VecDeque::from(rows),
             done: false,
@@ -21,7 +19,7 @@ impl RowCursor {
     }
 
     /// Pop the next row, or None if exhausted.
-    pub fn next_row(&mut self) -> Option<Row> {
+    pub fn next_row(&mut self) -> Option<serde_json::Value> {
         if self.done {
             return None;
         }
@@ -33,5 +31,4 @@ impl RowCursor {
             }
         }
     }
-
 }

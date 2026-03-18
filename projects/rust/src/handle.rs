@@ -1,13 +1,24 @@
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, OnceLock};
 
 use lazy_static::lazy_static;
-use mssql_client::{Client, Ready};
-use mssql_driver_pool::{Pool, PooledConnection};
+use odbc_api::Environment;
 
 use crate::config::NormalizedConfig;
 use crate::error::{MssqlError, Result};
+use crate::pool::OdbcPool;
+
+// ── ODBC Environment singleton ──────────────────────────────
+
+static ODBC_ENV: OnceLock<Environment> = OnceLock::new();
+
+/// Get the global ODBC environment (created once, lives forever).
+pub fn odbc_env() -> &'static Environment {
+    ODBC_ENV.get_or_init(|| {
+        Environment::new().expect("Failed to create ODBC environment")
+    })
+}
 
 // ── Handle ID counters ────────────────────────────────────────
 
@@ -33,10 +44,9 @@ lazy_static! {
 
 // ── Pool handle ──────────────────────────────────────────────
 
-/// The pool holds an mssql-driver-pool Pool plus the original config
-/// for creating bare (non-pooled) connections.
+/// The pool holds an OdbcPool for connection management.
 pub struct PoolHandle {
-    pub pool: Pool,
+    pub pool: OdbcPool,
     pub last_error: Mutex<Option<String>>,
     pub ref_count: AtomicU32,
     pub dedup_key: String,
@@ -44,28 +54,28 @@ pub struct PoolHandle {
 
 // ── Connection handle ────────────────────────────────────────
 
-/// A connection wraps either a pooled or bare mssql-client Client.
-/// The client is stored behind Option so it can be temporarily taken
-/// out during async operations.
+/// A connection wraps an ODBC connection.
+/// The connection is stored behind Option so it can be temporarily taken
+/// out during operations (take-and-replace pattern).
 pub struct ConnHandle {
-    pub client: Mutex<Option<MssqlClient>>,
+    pub conn: Mutex<Option<OdbcConn>>,
     pub pool_id: Option<u64>,
     pub last_error: Mutex<Option<String>>,
     pub active_transaction: Mutex<Option<String>>,
 }
 
 /// Either a pool-managed connection or a standalone one.
-pub enum MssqlClient {
-    Pooled(Box<PooledConnection>),
-    Bare(Box<Client<Ready>>),
+pub enum OdbcConn {
+    Pooled(odbc_api::Connection<'static>),
+    Bare(odbc_api::Connection<'static>),
 }
 
-impl MssqlClient {
-    /// Get a mutable reference to the underlying Client<Ready>.
-    pub fn as_client_mut(&mut self) -> Option<&mut Client<Ready>> {
+impl OdbcConn {
+    /// Get a reference to the underlying ODBC Connection.
+    pub fn connection(&self) -> &odbc_api::Connection<'static> {
         match self {
-            MssqlClient::Pooled(pc) => pc.client_mut(),
-            MssqlClient::Bare(c) => Some(c.as_mut()),
+            OdbcConn::Pooled(c) => c,
+            OdbcConn::Bare(c) => c,
         }
     }
 }
@@ -75,7 +85,7 @@ impl MssqlClient {
 /// Store a pool, returning its handle ID. If a pool with the same dedup key
 /// already exists, the existing pool's refcount is incremented and its ID is
 /// returned (the new Pool is dropped).
-pub fn store_pool(pool: Pool, config: NormalizedConfig) -> u64 {
+pub fn store_pool(pool: OdbcPool, config: &NormalizedConfig) -> u64 {
     let key = config.dedup_key();
     let mut dedup = POOL_DEDUP.lock().unwrap();
     let mut pools = POOLS.lock().unwrap();
@@ -139,10 +149,10 @@ pub fn remove_all_pools() {
 
 // ── Connection operations ────────────────────────────────────
 
-pub fn store_conn(client: MssqlClient, pool_id: Option<u64>) -> u64 {
+pub fn store_conn(conn: OdbcConn, pool_id: Option<u64>) -> u64 {
     let id = next_conn_id();
     let handle = Arc::new(ConnHandle {
-        client: Mutex::new(Some(client)),
+        conn: Mutex::new(Some(conn)),
         pool_id,
         last_error: Mutex::new(None),
         active_transaction: Mutex::new(None),
@@ -197,7 +207,7 @@ pub fn diagnostic_snapshot() -> serde_json::Value {
             serde_json::json!({
                 "id": id,
                 "total": status.total,
-                "idle": status.available,
+                "idle": status.idle,
                 "in_use": status.in_use,
                 "max": status.max,
                 "ref_count": handle.ref_count.load(Ordering::SeqCst),

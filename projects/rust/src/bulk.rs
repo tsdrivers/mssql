@@ -1,4 +1,4 @@
-use mssql_client::{Client, Ready};
+use odbc_api::Connection;
 use serde::Deserialize;
 
 use crate::debug::debug_log;
@@ -27,13 +27,8 @@ pub struct BulkColumn {
 }
 
 /// Execute a bulk insert using batched INSERT ... VALUES statements.
-///
-/// mssql-client v0.6's BulkInsert API only generates TDS packets without
-/// a way to send them through Client, so we use standard INSERT batches.
-/// This is reliable and works for all scenarios, though slightly slower
-/// than the native TDS bulk copy protocol for very large datasets.
-pub async fn execute_bulk(
-    client: &mut Client<Ready>,
+pub fn execute_bulk(
+    conn: &Connection<'static>,
     req: &BulkInsertRequest,
 ) -> Result<u64> {
     if req.rows.is_empty() {
@@ -56,12 +51,11 @@ pub async fn execute_bulk(
     for chunk in req.rows.chunks(batch_size) {
         let sql = build_insert_batch(&req.table, &col_names, &req.columns, chunk)?;
 
-        let affected = client
-            .execute(&sql, &[])
-            .await
-            .map_err(|e| MssqlError::Query(format!("Bulk insert batch failed: {e}")))?;
+        conn.execute(&sql, ()).map_err(|e| {
+            MssqlError::Query(format!("Bulk insert batch failed: {e}"))
+        })?;
 
-        total_affected += affected as u64;
+        total_affected += chunk.len() as u64;
     }
 
     debug_log!("Bulk insert complete: {} rows affected", total_affected);
@@ -133,8 +127,12 @@ fn value_to_literal(value: &serde_json::Value, col_type: &str) -> Result<String>
                     let bytes = base64::engine::general_purpose::STANDARD
                         .decode(s)
                         .map_err(|e| MssqlError::Query(format!("Invalid base64: {e}")))?;
-                    let hex: String = bytes.iter().map(|b| format!("{b:02X}")).collect();
-                    Ok(format!("0x{hex}"))
+                    if bytes.is_empty() {
+                        Ok("CAST(0x AS VARBINARY(MAX))".to_string())
+                    } else {
+                        let hex: String = bytes.iter().map(|b| format!("{b:02X}")).collect();
+                        Ok(format!("0x{hex}"))
+                    }
                 }
                 _ => {
                     // Escape single quotes for string literal
@@ -195,8 +193,16 @@ mod tests {
     #[test]
     fn test_build_insert_batch() {
         let columns = vec![
-            BulkColumn { name: "id".into(), col_type: "int".into(), nullable: false },
-            BulkColumn { name: "name".into(), col_type: "nvarchar".into(), nullable: true },
+            BulkColumn {
+                name: "id".into(),
+                col_type: "int".into(),
+                nullable: false,
+            },
+            BulkColumn {
+                name: "name".into(),
+                col_type: "nvarchar".into(),
+                nullable: true,
+            },
         ];
         let col_names: Vec<&str> = columns.iter().map(|c| c.name.as_str()).collect();
         let rows = vec![

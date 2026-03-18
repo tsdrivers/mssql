@@ -42,13 +42,13 @@ export class FilestreamHandle implements AsyncDisposable {
   ): FilestreamHandle {
     if (!ffi.filestreamAvailable()) {
       throw new Error(
-        "FILESTREAM requires Microsoft OLE DB Driver 19 for SQL Server.\n" +
+        "FILESTREAM requires Microsoft ODBC Driver 18 for SQL Server.\n" +
           "\n" +
           "Install via:\n" +
-          "  winget install Microsoft.OLEDBDriver\n" +
-          "  https://learn.microsoft.com/en-us/sql/connect/oledb/download-oledb-driver-for-sql-server\n" +
+          "  winget install Microsoft.ODBC.18\n" +
+          "  https://learn.microsoft.com/en-us/sql/connect/odbc/download-odbc-driver-for-sql-server\n" +
           "\n" +
-          "This is ONLY needed for FILESTREAM. All other driver features work without it.",
+          "The ODBC driver is required for all @tsdrivers/mssql features.",
       );
     }
 

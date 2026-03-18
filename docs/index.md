@@ -14,7 +14,7 @@ features:
   - title: Multi-Runtime
     details: Works with Deno, Node.js 22+, and Bun — same API across all runtimes.
   - title: High Performance
-    details: Native Rust library using mssql-client + tokio + mssql-driver-pool for async SQL Server access via FFI.
+    details: Native Rust library using Microsoft ODBC Driver 18 for SQL Server access via FFI.
   - title: Modern TypeScript
     details: AsyncDisposable support, streaming queries, tagged template literals, and full type safety.
   - title: Feature Rich

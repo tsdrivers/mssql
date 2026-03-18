@@ -1,5 +1,24 @@
 # Installation
 
+## Prerequisites
+
+[Microsoft ODBC Driver 18 for SQL Server](https://learn.microsoft.com/en-us/sql/connect/odbc/download-odbc-driver-for-sql-server) must be installed on the target system:
+
+```sh
+# Windows
+winget install Microsoft.ODBC.18
+
+# macOS
+brew install microsoft/mssql-release/msodbcsql18
+
+# Debian / Ubuntu
+curl https://packages.microsoft.com/keys/microsoft.asc | sudo tee /etc/apt/trusted.gpg.d/microsoft.asc
+sudo apt-get update && sudo apt-get install -y msodbcsql18
+
+# RHEL / Fedora
+sudo dnf install msodbcsql18
+```
+
 ## Install the Package
 
 ```sh

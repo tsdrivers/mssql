@@ -32,7 +32,7 @@ describe("filestreamAvailable", () => {
     const env = getTestEnv();
     if (env.isWindows) return;
     await using cn = await mssql.connect(env.connectionString);
-    strictEqual(await cn.filestreamAvailable(), false);
+    strictEqual(await cn.fs.available(), false);
   });
 
   test("via pool", { skip: skipMssql }, async () => {
@@ -45,9 +45,9 @@ describe("filestreamAvailable", () => {
   test("with explicit database name", { skip: skipMssql }, async () => {
     const env = getTestEnv();
     await using cn = await mssql.connect(env.connectionString);
-    const defaultResult = await cn.filestreamAvailable();
-    const explicitResult = await cn.filestreamAvailable("MSSQLTS_TEST");
-    const bracketResult = await cn.filestreamAvailable("[MSSQLTS_TEST]");
+    const defaultResult = await cn.fs.available();
+    const explicitResult = await cn.fs.available("MSSQLTS_TEST");
+    const bracketResult = await cn.fs.available("[MSSQLTS_TEST]");
     strictEqual(defaultResult, explicitResult);
     strictEqual(defaultResult, bracketResult);
   });
@@ -85,10 +85,10 @@ describe("VARBINARY(max)", () => {
     )`);
 
     await cn.execute("INSERT INTO #vb_null (data) VALUES (NULL)");
-    // Empty VARBINARY can't be sent as a parameterized value (mssql-client v0.6 driver
-    // limitation: sends VARBINARY(0) which SQL Server rejects). Use SQL literal instead.
+    // Empty VARBINARY works via parameterized value
     await cn.execute(
-      "INSERT INTO #vb_null (data) VALUES (CAST(0x AS VARBINARY(MAX)))",
+      "INSERT INTO #vb_null (data) VALUES (@data)",
+      { data: { value: new Uint8Array(0), type: "varbinary" } },
     );
 
     const rows = await cn.query<{ data: string | null }>(
@@ -174,6 +174,94 @@ describe("VARBINARY(max)", () => {
   });
 });
 
+describe("blob streaming", () => {
+  test("write + read via node:stream", { skip: skipMssql }, async () => {
+    const env = getTestEnv();
+    await using cn = await mssql.connect(env.connectionString);
+
+    await cn.execute(`CREATE TABLE #blob_stream (
+      id INT IDENTITY PRIMARY KEY, data VARBINARY(MAX)
+    )`);
+    await cn.execute("INSERT INTO #blob_stream (data) VALUES (0x)");
+
+    // Write
+    {
+      await using tx = await cn.beginTransaction();
+      const writable = cn.blob.filestream.write(tx, {
+        table: "#blob_stream", column: "data",
+        where: "id = 1", chunkSize: 64,
+      });
+      const mid = Math.floor(TEST_BYTES.length / 2);
+      writable.write(TEST_BYTES.slice(0, mid));
+      writable.end(TEST_BYTES.slice(mid));
+      await new Promise<void>((resolve, reject) => {
+        writable.on("finish", resolve);
+        writable.on("error", reject);
+      });
+      await tx.commit();
+    }
+
+    // Read
+    {
+      await using tx = await cn.beginTransaction();
+      const readable = cn.blob.filestream.read(tx, {
+        table: "#blob_stream", column: "data",
+        where: "id = 1", chunkSize: 64,
+      });
+      const chunks: Uint8Array[] = [];
+      for await (const chunk of readable) {
+        chunks.push(chunk);
+      }
+      await tx.commit();
+
+      const total = chunks.reduce((n, c) => n + c.length, 0);
+      const result = new Uint8Array(total);
+      let offset = 0;
+      for (const c of chunks) { result.set(c, offset); offset += c.length; }
+      strictEqual(new TextDecoder().decode(result), TEST_CONTENT);
+    }
+  });
+
+  test("write + read via web streams", { skip: skipMssql }, async () => {
+    const env = getTestEnv();
+    await using cn = await mssql.connect(env.connectionString);
+
+    await cn.execute(`CREATE TABLE #blob_web (
+      id INT IDENTITY PRIMARY KEY, data VARBINARY(MAX)
+    )`);
+    await cn.execute("INSERT INTO #blob_web (data) VALUES (0x)");
+
+    // Write
+    {
+      await using tx = await cn.beginTransaction();
+      const ws = cn.blob.webstream.write(tx, {
+        table: "#blob_web", column: "data", where: "id = 1",
+      });
+      const writer = ws.getWriter();
+      await writer.write(TEST_BYTES);
+      await writer.close();
+      await tx.commit();
+    }
+
+    // Read
+    {
+      await using tx = await cn.beginTransaction();
+      const rs = cn.blob.webstream.read(tx, {
+        table: "#blob_web", column: "data", where: "id = 1",
+      });
+      const chunks: Uint8Array[] = [];
+      for await (const chunk of rs) { chunks.push(chunk); }
+      await tx.commit();
+
+      const total = chunks.reduce((n, c) => n + c.length, 0);
+      const result = new Uint8Array(total);
+      let offset = 0;
+      for (const c of chunks) { result.set(c, offset); offset += c.length; }
+      strictEqual(new TextDecoder().decode(result), TEST_CONTENT);
+    }
+  });
+});
+
 describe("FILESTREAM", () => {
   test("pipeline via node:stream", { skip: skipFilestream }, async () => {
     const env = getTestEnv();
@@ -206,7 +294,7 @@ describe("FILESTREAM", () => {
         );
 
         const source = createReadStream(tmpInput);
-        const writable = cn.openFilestream(info.path, info.ctx, "write");
+        const writable = cn.fs.open(info.path, info.ctx, "write");
         await pipeline(source, writable);
         await tx.commit();
       }
@@ -222,7 +310,7 @@ describe("FILESTREAM", () => {
           { transaction: tx },
         );
 
-        const readable = cn.openFilestream(info.path, info.ctx, "read");
+        const readable = cn.fs.open(info.path, info.ctx, "read");
         const dest = createWriteStream(tmpOutput);
         await pipeline(readable, dest);
         await tx.commit();
@@ -267,7 +355,7 @@ describe("FILESTREAM", () => {
           { transaction: tx },
         );
 
-        const writable = cn.openWebstream(info.path, info.ctx, "write");
+        const writable = cn.fs.openWeb(info.path, info.ctx, "write");
         const writer = writable.getWriter();
         await writer.write(TEST_BYTES);
         await writer.close();
@@ -285,7 +373,7 @@ describe("FILESTREAM", () => {
           { transaction: tx },
         );
 
-        const readable = cn.openWebstream(info.path, info.ctx, "read");
+        const readable = cn.fs.openWeb(info.path, info.ctx, "read");
         const reader = readable.getReader();
         const chunks: Uint8Array[] = [];
         while (true) {

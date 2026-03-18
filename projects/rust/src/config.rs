@@ -1,6 +1,4 @@
-use mssql_client::{Config, Credentials};
 use serde::Deserialize;
-use std::time::Duration;
 
 use crate::error::{MssqlError, Result};
 
@@ -47,64 +45,109 @@ pub struct PoolConfig {
     pub idle_timeout_ms: Option<u64>,
 }
 
+/// Detect which ODBC driver is available on the system.
+fn detect_odbc_driver() -> Result<&'static str> {
+    // Try drivers in order of preference
+    let candidates = [
+        "ODBC Driver 18 for SQL Server",
+        "ODBC Driver 17 for SQL Server",
+    ];
+    let env = crate::handle::odbc_env();
+    if let Ok(drivers) = env.drivers() {
+        for candidate in &candidates {
+            if drivers.iter().any(|d| d.description == *candidate) {
+                return Ok(match *candidate {
+                    "ODBC Driver 18 for SQL Server" => "ODBC Driver 18 for SQL Server",
+                    _ => "ODBC Driver 17 for SQL Server",
+                });
+            }
+        }
+    }
+    // Fallback: try 18 and let ODBC produce the error if missing
+    Ok("ODBC Driver 18 for SQL Server")
+}
+
 impl NormalizedConfig {
     /// Parse from a JSON string sent over FFI.
     pub fn from_json(json: &str) -> Result<Self> {
-        serde_json::from_str(json).map_err(|e| MssqlError::Config(format!("Invalid config JSON: {e}")))
+        serde_json::from_str(json)
+            .map_err(|e| MssqlError::Config(format!("Invalid config JSON: {e}")))
     }
 
-    /// Convert to an mssql-client Config.
-    pub fn to_client_config(&self) -> Result<Config> {
-        let credentials = match &self.auth {
+    /// Build an ODBC connection string from the normalized config.
+    pub fn to_odbc_connection_string(&self) -> Result<String> {
+        let driver = detect_odbc_driver()?;
+        let mut parts: Vec<String> = Vec::with_capacity(16);
+
+        parts.push(format!("DRIVER={{{driver}}}"));
+
+        // Server: host,port or host\instance
+        if let Some(ref instance) = self.instance_name {
+            parts.push(format!("SERVER={}\\{}", self.server, instance));
+        } else {
+            parts.push(format!("SERVER={},{}", self.server, self.port));
+        }
+
+        if !self.database.is_empty() {
+            parts.push(format!("DATABASE={}", self.database));
+        }
+
+        // Auth
+        match &self.auth {
             AuthConfig::Sql { username, password } => {
-                Credentials::sql_server(username.clone(), password.clone())
+                parts.push(format!("UID={username}"));
+                parts.push(format!("PWD={password}"));
             }
             AuthConfig::Ntlm {
                 username,
                 password,
                 domain,
             } => {
-                // mssql-client uses domain\username format for NTLM
-                let full_user = format!("{domain}\\{username}");
-                Credentials::sql_server(full_user, password.clone())
+                parts.push(format!("UID={domain}\\{username}"));
+                parts.push(format!("PWD={password}"));
             }
             AuthConfig::Windows => {
-                Credentials::integrated_sspi(self.server.clone(), self.port)
+                parts.push("Trusted_Connection=yes".to_string());
             }
             AuthConfig::AzureAd { username, password } => {
-                // Azure AD password auth maps to SQL auth for now
-                Credentials::sql_server(username.clone(), password.clone())
+                parts.push("Authentication=ActiveDirectoryPassword".to_string());
+                parts.push(format!("UID={username}"));
+                parts.push(format!("PWD={password}"));
             }
             AuthConfig::AzureAdToken { token } => {
-                Credentials::azure_token(token.clone())
+                // For token auth we set UID empty and handle via connection attribute
+                // The token will be set separately via SQL_COPT_SS_ACCESS_TOKEN
+                // For ODBC Driver 18+, we can use the connection string directly
+                parts.push(format!("AccessToken={token}"));
             }
-        };
-
-        let mut config = Config::new()
-            .host(&self.server)
-            .port(self.port)
-            .credentials(credentials)
-            .connect_timeout(Duration::from_millis(self.connect_timeout_ms))
-            .application_name(&self.app_name)
-            .trust_server_certificate(self.trust_server_certificate)
-            .encrypt(self.encrypt);
-
-        // Set command timeout via field (no builder method)
-        config.command_timeout = Duration::from_millis(self.request_timeout_ms);
-
-        if !self.database.is_empty() {
-            config = config.database(&self.database);
         }
 
-        if let Some(ref instance) = self.instance_name {
-            config.instance = Some(instance.clone());
+        // Encryption
+        if self.encrypt {
+            parts.push("Encrypt=yes".to_string());
+        } else {
+            parts.push("Encrypt=no".to_string());
+        }
+
+        if self.trust_server_certificate {
+            parts.push("TrustServerCertificate=yes".to_string());
+        }
+
+        // Timeouts (ODBC uses seconds)
+        let connect_timeout_secs = (self.connect_timeout_ms / 1000).max(1);
+        parts.push(format!("Connection Timeout={connect_timeout_secs}"));
+
+        // Command timeout is set per-statement, not in connection string
+
+        if !self.app_name.is_empty() {
+            parts.push(format!("Application Name={}", self.app_name));
         }
 
         if self.packet_size > 0 {
-            config.packet_size = self.packet_size;
+            parts.push(format!("Packet Size={}", self.packet_size));
         }
 
-        Ok(config)
+        Ok(parts.join(";") + ";")
     }
 
     /// Canonical identity key for pool deduplication.
@@ -135,24 +178,6 @@ impl NormalizedConfig {
             self.packet_size,
         )
     }
-
-    /// Build a pool config from the normalized config.
-    pub fn to_pool_config(&self) -> mssql_driver_pool::PoolConfig {
-        let mut pc = mssql_driver_pool::PoolConfig::default();
-        if let Some(ref pool) = self.pool {
-            if let Some(min) = pool.min {
-                pc.min_connections = min;
-            }
-            if let Some(max) = pool.max {
-                pc.max_connections = max;
-            }
-            if let Some(idle_ms) = pool.idle_timeout_ms {
-                pc.idle_timeout = Duration::from_millis(idle_ms);
-            }
-        }
-        pc.connection_timeout = Duration::from_millis(self.connect_timeout_ms);
-        pc
-    }
 }
 
 #[cfg(test)]
@@ -178,9 +203,6 @@ mod tests {
         let cfg = NormalizedConfig::from_json(json).unwrap();
         assert_eq!(cfg.server, "localhost");
         assert_eq!(cfg.port, 1433);
-        let client_cfg = cfg.to_client_config().unwrap();
-        assert_eq!(client_cfg.host, "localhost");
-        assert_eq!(client_cfg.port, 1433);
     }
 
     #[test]
@@ -200,9 +222,10 @@ mod tests {
             "pool": {"min": 2, "max": 10, "idle_timeout_ms": 60000}
         }"#;
         let cfg = NormalizedConfig::from_json(json).unwrap();
-        let pool_cfg = cfg.to_pool_config();
-        assert_eq!(pool_cfg.min_connections, 2);
-        assert_eq!(pool_cfg.max_connections, 10);
+        assert!(cfg.pool.is_some());
+        let pool = cfg.pool.unwrap();
+        assert_eq!(pool.min, Some(2));
+        assert_eq!(pool.max, Some(10));
     }
 
     #[test]
@@ -223,7 +246,6 @@ mod tests {
         }"#;
         let cfg = NormalizedConfig::from_json(json).unwrap();
         assert!(matches!(cfg.auth, AuthConfig::AzureAdToken { .. }));
-        let _client_cfg = cfg.to_client_config().unwrap();
     }
 
     #[test]
@@ -232,7 +254,12 @@ mod tests {
         assert!(result.is_err());
     }
 
-    fn make_config(server: &str, database: &str, pool_min: Option<u32>, pool_max: Option<u32>) -> NormalizedConfig {
+    fn make_config(
+        server: &str,
+        database: &str,
+        pool_min: Option<u32>,
+        pool_max: Option<u32>,
+    ) -> NormalizedConfig {
         NormalizedConfig {
             server: server.to_string(),
             port: 1433,

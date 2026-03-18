@@ -69,7 +69,7 @@ A `.env` file at project root (gitignored) is sourced by all `run/` scripts if p
 ## Architecture Overview
 
 ```
-Rust cdylib (mssql-client + mssql-driver-pool + tokio)
+Rust cdylib (odbc-api + Microsoft ODBC Driver 18)
   ↕ C ABI: u64 handle IDs, JSON strings, null-terminated C strings
 projects/mssql/ffi/{deno,node,bun}.ts  →  RuntimeFFI interface
   ↕
@@ -87,7 +87,7 @@ projects/mssql/mod.ts  →  Entry point (runtime detection, lazy FFI init)
 | `handle.rs` | Handle storage: u64 → `Arc<ConnHandle/PoolHandle>` in static HashMaps |
 | `query.rs` | Query execution, parameter marshalling, result → JSON serialization |
 | `config.rs` | `NormalizedConfig` deserialized from JSON (auth, host, pool settings) |
-| `pool.rs` | mssql-driver-pool wrapper |
+| `pool.rs` | ODBC connection pool (idle queue, min/max) |
 | `stream.rs` | Row streaming via VecDeque cursor |
 | `bulk.rs` | Bulk insert via batched INSERT VALUES statements |
 | `debug.rs` | Debug logging (`MSSQLTS_DEBUG` env var, stderr output) |
@@ -192,12 +192,13 @@ files. The shipped binary is stripped.
 
 ## Current State
 
-Phases 1–14 are complete. Phase 14 fixed all `cargo clippy` warnings (unsafe ptr
-deref, await-holding-lock via take-and-replace, large enum variant boxing, duplicate
-branches, manual range contains) and redesigned the FILESTREAM TypeScript API:
-`cn.openFilestream()` returns `node:stream` Readable/Writable/Duplex,
-`cn.openWebstream()` returns Web Standard ReadableStream/WritableStream.
-See `TODO.md` for Phase 15 (outstanding items).
+Phases 1–15 are complete. Phase 15 replaced the Rust TDS-protocol crates
+(`mssql-client` + `mssql-driver-pool`) with Microsoft ODBC Driver 18 via the
+`odbc-api` Rust crate. The ODBC driver handles TDS, auth (SQL, Windows/SSPI,
+Kerberos, Azure AD), and encryption natively. FILESTREAM now uses
+`OpenSqlFilestream` from the ODBC driver DLL directly (no OLE DB dependency).
+All 283 tests pass across Deno, Node.js, and Bun on Windows Server 2025.
+See `TODO.md` for Phase 16 (outstanding items).
 
 ## Code Style
 

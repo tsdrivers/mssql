@@ -59,11 +59,107 @@ const cn = await mssql.connect({
 });
 ```
 
-## Azure AD Authentication
+## Authentication
 
-Azure SQL supports Azure Active Directory (Entra ID) authentication. The driver
-supports several Azure AD auth flows — all resolve to an access token on the
-TypeScript side before crossing the FFI boundary.
+The driver supports several authentication methods. The right choice depends on
+your environment and security requirements.
+
+### SQL Server Authentication
+
+Username and password authentication against SQL Server's built-in auth system.
+Works on all platforms.
+
+```ts
+// ADO.NET
+"Server=myserver;Database=mydb;User Id=sa;Password=pass;TrustServerCertificate=true;"
+
+// URL
+"mssql://sa:pass@myserver/mydb?trustServerCertificate=true"
+
+// Config object
+{
+  server: "myserver",
+  authentication: { type: "sql", userName: "sa", password: "pass" },
+}
+```
+
+### Windows Authentication (Integrated Security)
+
+Uses the current process identity to authenticate — no username or password
+needed. This is the most common method in enterprise Windows environments.
+
+```ts
+// ADO.NET
+"Server=myserver;Database=mydb;Integrated Security=true;TrustServerCertificate=true;"
+
+// URL
+"mssql://myserver/mydb?integratedSecurity=true&trustServerCertificate=true"
+
+// Config object
+{
+  server: "myserver",
+  authentication: { type: "windows" },
+}
+```
+
+::: tip Platform Behavior
+| Platform | How It Works |
+|---|---|
+| **Windows** | Uses SSPI (Security Support Provider Interface) automatically. The current Windows user's credentials are sent to SQL Server via Kerberos or NTLM. No additional configuration needed. |
+| **Linux / macOS** | Uses Kerberos. You must have a valid Kerberos ticket before connecting. Obtain one with `kinit user@REALM` (requires `krb5-user` on Debian/Ubuntu or `krb5-workstation` on RHEL). |
+:::
+
+### NTLM Authentication (Explicit Domain Credentials)
+
+Authenticate with a specific Active Directory domain account by providing
+domain, username, and password. Works on **all platforms** — the ODBC driver
+handles NTLM negotiation natively.
+
+This is useful when:
+- You need to connect as a different user than the current process
+- You're on Linux/macOS and don't want to set up Kerberos
+- You're running in a container or CI environment
+
+```ts
+// ADO.NET — use Domain keyword
+"Server=myserver;Database=mydb;User Id=myuser;Password=pass;Domain=MYDOMAIN;TrustServerCertificate=true;"
+
+// URL — use domain query param
+"mssql://myuser:pass@myserver/mydb?domain=MYDOMAIN&trustServerCertificate=true"
+
+// Config object
+{
+  server: "myserver",
+  authentication: {
+    type: "ntlm",
+    options: { domain: "MYDOMAIN", userName: "myuser", password: "pass" },
+  },
+}
+```
+
+::: info Cross-Platform
+NTLM with explicit credentials is the simplest way to use Windows/domain
+authentication from Linux or macOS — no Kerberos ticket or keytab required.
+The ODBC driver handles the NTLM handshake on all platforms.
+:::
+
+### Authentication Method Summary
+
+| Method | Credentials Required | Windows | Linux / macOS |
+|---|---|---|---|
+| SQL Server (`sql`) | Username + password | Yes | Yes |
+| Windows Integrated (`windows`) | None (current user) | Yes (SSPI) | Yes (Kerberos ticket required) |
+| NTLM (`ntlm`) | Domain + username + password | Yes | Yes |
+| Azure AD (see below) | Token or credentials | Yes | Yes |
+
+## Azure AD / Entra ID Authentication
+
+Azure SQL supports Azure Active Directory (now Microsoft Entra ID)
+authentication. The ODBC Driver 18 handles Azure AD auth natively — the driver
+supports token-based flows where your TypeScript code acquires the token and
+passes it through.
+
+Works on all platforms (Windows, Linux, macOS).
 
 ### Pre-acquired Access Token
 
@@ -81,17 +177,22 @@ const pool = await mssql.createPool({
 });
 ```
 
-Or via ADO.NET connection string:
+Or via connection string:
 
 ```
-Authentication=ActiveDirectoryAccessToken;Access Token=eyJ...;Server=myserver.database.windows.net;Database=mydb;
+Server=myserver.database.windows.net;Database=mydb;Authentication=ActiveDirectoryAccessToken;Access Token=eyJ...;Encrypt=true;
 ```
 
 Or via URL:
 
 ```
-mssql://myserver.database.windows.net/mydb?authentication=azure-active-directory-access-token&token=eyJ...
+mssql://myserver.database.windows.net/mydb?authentication=azure-active-directory-access-token&token=eyJ...&encrypt=true
 ```
+
+::: info Encryption
+Azure SQL requires encrypted connections. Always set `Encrypt=true` (or omit
+it — the driver defaults to encrypted for Azure endpoints).
+:::
 
 ### Token Provider Callback
 

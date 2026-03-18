@@ -11,7 +11,7 @@ mod platform {
     use crate::error::{MssqlError, Result};
 
     type OpenSqlFilestreamFn = unsafe extern "system" fn(
-        filestream_path: PCSTR,
+        filestream_path: *const u16,
         desired_access: u32,
         open_options: u32,
         filestream_transaction_context: *const u8,
@@ -25,28 +25,36 @@ mod platform {
 
     static OPEN_FN: OnceLock<std::result::Result<OpenSqlFilestreamFn, String>> = OnceLock::new();
 
+    /// Resolve `OpenSqlFilestream` from the Microsoft ODBC Driver for SQL Server.
+    /// The ODBC driver is already a hard prerequisite for this library and
+    /// exports `OpenSqlFilestream` on Windows — no additional installs needed.
     fn resolve_open_fn() -> std::result::Result<OpenSqlFilestreamFn, String> {
-        let cstr = CString::new("msoledbsql.dll").unwrap();
-        let lib = unsafe { LoadLibraryA(PCSTR::from_raw(cstr.as_ptr() as *const u8)) };
+        let candidates = [
+            "msodbcsql18.dll",
+            "msodbcsql17.dll",
+        ];
 
-        if let Ok(lib) = lib {
-            let proc = unsafe {
-                GetProcAddress(lib, PCSTR::from_raw(b"OpenSqlFilestream\0".as_ptr()))
-            };
-            if let Some(proc) = proc {
-                let func: OpenSqlFilestreamFn = unsafe { std::mem::transmute(proc) };
-                return Ok(func);
+        for dll_name in &candidates {
+            let cstr = CString::new(*dll_name).unwrap();
+            let lib = unsafe { LoadLibraryA(PCSTR::from_raw(cstr.as_ptr() as *const u8)) };
+
+            if let Ok(lib) = lib {
+                let proc = unsafe {
+                    GetProcAddress(lib, PCSTR::from_raw(b"OpenSqlFilestream\0".as_ptr()))
+                };
+                if let Some(proc) = proc {
+                    let func: OpenSqlFilestreamFn = unsafe { std::mem::transmute(proc) };
+                    return Ok(func);
+                }
             }
         }
 
         Err(
-            "FILESTREAM requires Microsoft OLE DB Driver 19 for SQL Server.\n\
+            "FILESTREAM requires the Microsoft ODBC Driver for SQL Server.\n\
              \n\
-             Install via:\n\
-             • winget install Microsoft.OLEDBDriver\n\
-             • https://learn.microsoft.com/en-us/sql/connect/oledb/download-oledb-driver-for-sql-server\n\
+             Install via: winget install Microsoft.ODBC.18\n\
              \n\
-             This is ONLY needed for FILESTREAM. All other features work without it."
+             The ODBC driver is already required for all database operations."
                 .to_string(),
         )
     }
@@ -73,8 +81,9 @@ mod platform {
         pub fn open(path: &str, tx_context: &[u8], mode: FilestreamMode) -> Result<Self> {
             let open_fn = get_open_fn()?;
 
-            let path_cstr = CString::new(path)
-                .map_err(|_| MssqlError::Connection("Invalid filestream path".into()))?;
+            // OpenSqlFilestream expects a wide (UTF-16) string path
+            let mut path_wide: Vec<u16> = path.encode_utf16().collect();
+            path_wide.push(0); // null-terminate
 
             let access = match mode {
                 FilestreamMode::Read => SQL_FILESTREAM_READ,
@@ -84,7 +93,7 @@ mod platform {
 
             let handle = unsafe {
                 open_fn(
-                    PCSTR::from_raw(path_cstr.as_ptr() as *const u8),
+                    path_wide.as_ptr(),
                     access,
                     0,
                     tx_context.as_ptr(),

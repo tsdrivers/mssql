@@ -147,15 +147,16 @@ export class MssqlPool implements Disposable, AsyncDisposable {
   }
 
   /**
-   * Check if FILESTREAM is available end-to-end: local OLE DB driver,
-   * server-level configuration, and database-level filegroup.
+   * Check if FILESTREAM is available end-to-end: ODBC driver with
+   * FILESTREAM support, server-level configuration, and database-level
+   * filegroup.
    *
    * @param database Optional database name (with or without square brackets).
    *                 Defaults to the current connection's database.
    */
   async filestreamAvailable(database?: string): Promise<boolean> {
     await using cn = await this.connect();
-    return await cn.filestreamAvailable(database);
+    return await cn.fs.available(database);
   }
 
   /** Close the pool and all connections. */

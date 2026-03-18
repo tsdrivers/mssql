@@ -9,13 +9,7 @@ name = "mssqlts"
 crate-type = ["cdylib"]
 
 [dependencies]
-mssql-client = { git = "https://github.com/praxiomlabs/rust-mssql-driver", branch = "dev", features = [
-    "chrono",
-    "uuid",
-    "zeroize",
-] }
-mssql-driver-pool = { git = "https://github.com/praxiomlabs/rust-mssql-driver", branch = "dev" }
-tokio = { version = "1", features = ["rt-multi-thread", "net", "time", "sync"] }
+odbc-api = "8"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 lazy_static = "1"

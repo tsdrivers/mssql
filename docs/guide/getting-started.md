@@ -23,7 +23,7 @@ Node.js, or Bun) and loads the correct FFI adapter. See
 
 The library has three layers:
 
-1. **Rust cdylib** — Handles all SQL Server communication using [mssql-client](https://crates.io/crates/mssql-client), [tokio](https://tokio.rs), and [mssql-driver-pool](https://crates.io/crates/mssql-driver-pool) for connection pooling. Exposes a C ABI with 26 FFI functions.
+1. **Rust cdylib** — Communicates with SQL Server via the [Microsoft ODBC Driver 18](https://learn.microsoft.com/en-us/sql/connect/odbc/download-odbc-driver-for-sql-server) through the [odbc-api](https://crates.io/crates/odbc-api) crate. Exposes a C ABI with 24 FFI functions.
 
 2. **Core TypeScript** — Runtime-agnostic business logic: connection/pool classes, query serialization, config parsing, binary resolution. Shared by all three runtime adapters.
 

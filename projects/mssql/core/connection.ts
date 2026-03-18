@@ -28,6 +28,8 @@ import {
   FilestreamWritable,
 } from "./filestream.ts";
 import type { FilestreamWebResult } from "./filestream.ts";
+import type { BlobTarget } from "./blob.ts";
+import { BlobReadable, BlobWritable, createBlobReadableStream, createBlobWritableStream } from "./blob.ts";
 import type { Readable, Writable, Duplex } from "node:stream";
 
 /**
@@ -233,118 +235,33 @@ export class MssqlConnection implements Disposable, AsyncDisposable {
     return tx;
   }
 
+  // ── Sub-object APIs ──────────────────────────────────────────
+
   /**
-   * Open a FILESTREAM blob as a `node:stream` Readable, Writable, or Duplex.
-   * Compatible with `pipe()` and Node.js stream patterns.
+   * FILESTREAM access (Windows only).
    *
-   * Windows only. Requires an active transaction.
+   * ```ts
+   * cn.fs.open(path, ctx, "read")    // node:stream Readable/Writable/Duplex
+   * cn.fs.openWeb(path, ctx, "read") // Web ReadableStream/WritableStream
+   * cn.fs.available()                // check availability
+   * ```
    */
-  openFilestream(
-    path: string,
-    txContext: Uint8Array | string,
-    mode: "read",
-  ): Readable;
-  openFilestream(
-    path: string,
-    txContext: Uint8Array | string,
-    mode: "write",
-  ): Writable;
-  openFilestream(
-    path: string,
-    txContext: Uint8Array | string,
-    mode: "readwrite",
-  ): Duplex;
-  openFilestream(
-    path: string,
-    txContext: Uint8Array | string,
-    mode: FilestreamMode,
-  ): Readable | Writable | Duplex {
-    const handle = FilestreamHandle._open(this.#ffi, path, txContext, mode);
-    switch (mode) {
-      case "read":
-        return new FilestreamReadable(handle);
-      case "write":
-        return new FilestreamWritable(handle);
-      case "readwrite":
-        return new FilestreamDuplex(handle);
-    }
+  get fs(): FilestreamAccessor {
+    return new FilestreamAccessor(this, this.#ffi);
   }
 
   /**
-   * Open a FILESTREAM blob as Web Standard ReadableStream or WritableStream.
-   * Compatible with `pipeTo()` and Deno-style file I/O patterns.
+   * Cross-platform VARBINARY(MAX) blob streaming. Requires a transaction.
    *
-   * Windows only. Requires an active transaction.
+   * ```ts
+   * cn.blob.filestream.read(tx, target)  // node:stream Readable
+   * cn.blob.filestream.write(tx, target) // node:stream Writable
+   * cn.blob.webstream.read(tx, target)   // Web ReadableStream
+   * cn.blob.webstream.write(tx, target)  // Web WritableStream
+   * ```
    */
-  openWebstream(
-    path: string,
-    txContext: Uint8Array | string,
-    mode: "read",
-  ): ReadableStream<Uint8Array>;
-  openWebstream(
-    path: string,
-    txContext: Uint8Array | string,
-    mode: "write",
-  ): WritableStream<Uint8Array>;
-  openWebstream(
-    path: string,
-    txContext: Uint8Array | string,
-    mode: "readwrite",
-  ): FilestreamWebResult;
-  openWebstream(
-    path: string,
-    txContext: Uint8Array | string,
-    mode: FilestreamMode,
-  ): ReadableStream<Uint8Array> | WritableStream<Uint8Array> | FilestreamWebResult {
-    const handle = FilestreamHandle._open(this.#ffi, path, txContext, mode);
-    switch (mode) {
-      case "read":
-        return handle.toReadableStream();
-      case "write":
-        return handle.toWritableStream();
-      case "readwrite":
-        return {
-          readable: handle.toReadableStream(),
-          writable: handle.toWritableStream(),
-        };
-    }
-  }
-
-  /**
-   * Check if FILESTREAM is available end-to-end: local OLE DB driver,
-   * server-level configuration, and database-level filegroup.
-   *
-   * @param database Optional database name (with or without square brackets).
-   *                 Defaults to the current connection's database.
-   */
-  async filestreamAvailable(database?: string): Promise<boolean> {
-    // 1. Local: OLE DB Driver 19 must be installed (Windows only)
-    if (!this.#ffi.filestreamAvailable()) return false;
-
-    // 2. Server: FILESTREAM access level must be >= 2 (T-SQL + file I/O)
-    try {
-      const level = await this.scalar<number>(
-        "SELECT CAST(value_in_use AS int) FROM sys.configurations WHERE name = 'filestream access level'",
-      );
-      if ((level ?? 0) < 2) return false;
-    } catch {
-      return false;
-    }
-
-    // 3. Database: must have a FILESTREAM filegroup
-    try {
-      const dbName = database?.replace(/^\[|\]$/g, "");
-      const fgCount = dbName
-        ? await this.scalar<number>(
-            `SELECT COUNT(*) FROM [${dbName.replace(/\]/g, "]]")}].sys.filegroups WHERE type = 'FD'`,
-          )
-        : await this.scalar<number>(
-            "SELECT COUNT(*) FROM sys.filegroups WHERE type = 'FD'",
-          );
-      return (fgCount ?? 0) > 0;
-    } catch {
-      return false;
-    }
+  get blob(): BlobAccessor {
+    return new BlobAccessor(this);
   }
 
   /**
@@ -445,6 +362,154 @@ export class MssqlConnection implements Disposable, AsyncDisposable {
     if (this.#disposed) throw new Error("Connection is closed");
     opts?.signal?.throwIfAborted();
     opts?.transaction?._ensureActive();
+  }
+}
+
+// ── Accessor classes for sub-object APIs ─────────────────────
+
+/** Windows FILESTREAM sub-object: `cn.fs` */
+class FilestreamAccessor {
+  #cn: MssqlConnection;
+  #ffi: RuntimeFFI;
+
+  constructor(cn: MssqlConnection, ffi: RuntimeFFI) {
+    this.#cn = cn;
+    this.#ffi = ffi;
+  }
+
+  /** Open as `node:stream` Readable, Writable, or Duplex. Windows only. */
+  open(path: string, ctx: Uint8Array | string, mode: "read"): Readable;
+  open(path: string, ctx: Uint8Array | string, mode: "write"): Writable;
+  open(path: string, ctx: Uint8Array | string, mode: "readwrite"): Duplex;
+  open(
+    path: string,
+    ctx: Uint8Array | string,
+    mode: FilestreamMode,
+  ): Readable | Writable | Duplex {
+    const handle = FilestreamHandle._open(this.#ffi, path, ctx, mode);
+    switch (mode) {
+      case "read":
+        return new FilestreamReadable(handle);
+      case "write":
+        return new FilestreamWritable(handle);
+      case "readwrite":
+        return new FilestreamDuplex(handle);
+    }
+  }
+
+  /** Open as Web Standard ReadableStream, WritableStream, or both. Windows only. */
+  openWeb(path: string, ctx: Uint8Array | string, mode: "read"): ReadableStream<Uint8Array>;
+  openWeb(path: string, ctx: Uint8Array | string, mode: "write"): WritableStream<Uint8Array>;
+  openWeb(path: string, ctx: Uint8Array | string, mode: "readwrite"): FilestreamWebResult;
+  openWeb(
+    path: string,
+    ctx: Uint8Array | string,
+    mode: FilestreamMode,
+  ): ReadableStream<Uint8Array> | WritableStream<Uint8Array> | FilestreamWebResult {
+    const handle = FilestreamHandle._open(this.#ffi, path, ctx, mode);
+    switch (mode) {
+      case "read":
+        return handle.toReadableStream();
+      case "write":
+        return handle.toWritableStream();
+      case "readwrite":
+        return {
+          readable: handle.toReadableStream(),
+          writable: handle.toWritableStream(),
+        };
+    }
+  }
+
+  /**
+   * Check if FILESTREAM is available end-to-end: ODBC driver,
+   * server-level configuration, and database-level filegroup.
+   */
+  async available(database?: string): Promise<boolean> {
+    if (!this.#ffi.filestreamAvailable()) return false;
+
+    try {
+      const level = await this.#cn.scalar<number>(
+        "SELECT CAST(value_in_use AS int) FROM sys.configurations WHERE name = 'filestream access level'",
+      );
+      if ((level ?? 0) < 2) return false;
+    } catch {
+      return false;
+    }
+
+    try {
+      const dbName = database?.replace(/^\[|\]$/g, "");
+      const fgCount = dbName
+        ? await this.#cn.scalar<number>(
+            `SELECT COUNT(*) FROM [${dbName.replace(/\]/g, "]]")}].sys.filegroups WHERE type = 'FD'`,
+          )
+        : await this.#cn.scalar<number>(
+            "SELECT COUNT(*) FROM sys.filegroups WHERE type = 'FD'",
+          );
+      return (fgCount ?? 0) > 0;
+    } catch {
+      return false;
+    }
+  }
+}
+
+/** Cross-platform blob streaming sub-object: `cn.blob` */
+class BlobAccessor {
+  #cn: MssqlConnection;
+
+  constructor(cn: MssqlConnection) {
+    this.#cn = cn;
+  }
+
+  /** Node.js stream interface for blob read/write. */
+  get filestream(): BlobFilestreamAccessor {
+    return new BlobFilestreamAccessor(this.#cn);
+  }
+
+  /** Web Standard stream interface for blob read/write. */
+  get webstream(): BlobWebstreamAccessor {
+    return new BlobWebstreamAccessor(this.#cn);
+  }
+}
+
+/** `cn.blob.filestream` — node:stream Readable/Writable for VARBINARY(MAX). */
+class BlobFilestreamAccessor {
+  #cn: MssqlConnection;
+
+  constructor(cn: MssqlConnection) {
+    this.#cn = cn;
+  }
+
+  /** Read a VARBINARY(MAX) column as a `node:stream.Readable`. */
+  read(tx: Transaction, target: BlobTarget): Readable {
+    tx._ensureActive();
+    return new BlobReadable(this.#cn, tx, target);
+  }
+
+  /** Write to a VARBINARY(MAX) column as a `node:stream.Writable`. */
+  write(tx: Transaction, target: BlobTarget): Writable {
+    tx._ensureActive();
+    return new BlobWritable(this.#cn, tx, target);
+  }
+}
+
+/** `cn.blob.webstream` — Web ReadableStream/WritableStream for VARBINARY(MAX). */
+class BlobWebstreamAccessor {
+  #cn: MssqlConnection;
+
+  constructor(cn: MssqlConnection) {
+    this.#cn = cn;
+  }
+
+  /** Read a VARBINARY(MAX) column as a Web `ReadableStream`. */
+  read(tx: Transaction, target: BlobTarget): ReadableStream<Uint8Array> {
+    tx._ensureActive();
+    return createBlobReadableStream(this.#cn, tx, target);
+  }
+
+  /** Write to a VARBINARY(MAX) column as a Web `WritableStream`. */
+  write(tx: Transaction, target: BlobTarget): WritableStream<Uint8Array> {
+    tx._ensureActive();
+    return createBlobWritableStream(this.#cn, tx, target);
   }
 }
 

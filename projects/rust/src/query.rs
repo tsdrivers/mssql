@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
-use mssql_client::{Client, Ready, Row, SqlValue, ToSql};
+use odbc_api::buffers::TextRowSet;
+use odbc_api::{Connection, Cursor};
 use serde::Deserialize;
 
 use crate::error::{MssqlError, Result};
@@ -126,209 +127,48 @@ pub fn rewrite_named_params(
     (result, order)
 }
 
-// ── Parameter conversion ──────────────────────────────────────
-
-/// Convert a SerializedParam to a boxed ToSql value for parameterized queries.
-pub fn param_to_boxed(param: &SerializedParam) -> Result<Box<dyn ToSql + Sync>> {
-    match &param.value {
-        serde_json::Value::Null => Ok(Box::new(Option::<String>::None)),
-        serde_json::Value::Bool(b) => Ok(Box::new(*b)),
-        serde_json::Value::Number(n) => {
-            if let Some(i) = n.as_i64() {
-                match param.param_type.as_deref() {
-                    Some("tinyint") => Ok(Box::new(i as u8)),
-                    Some("smallint") => Ok(Box::new(i as i16)),
-                    Some("int") => Ok(Box::new(i as i32)),
-                    Some("bigint") => Ok(Box::new(i)),
-                    Some("float") | Some("real") => Ok(Box::new(i as f64)),
-                    _ => {
-                        if (i32::MIN as i64..=i32::MAX as i64).contains(&i) {
-                            Ok(Box::new(i as i32))
-                        } else {
-                            Ok(Box::new(i))
-                        }
-                    }
-                }
-            } else if let Some(f) = n.as_f64() {
-                Ok(Box::new(f))
-            } else {
-                Err(MssqlError::Query(format!("Unsupported number: {n}")))
-            }
-        }
-        serde_json::Value::String(s) => {
-            match param.param_type.as_deref() {
-                Some("uniqueidentifier") => {
-                    let uuid: uuid::Uuid = s
-                        .parse()
-                        .map_err(|e| MssqlError::Query(format!("Invalid UUID: {e}")))?;
-                    Ok(Box::new(uuid))
-                }
-                Some("date") => {
-                    let d: chrono::NaiveDate = s
-                        .parse()
-                        .map_err(|e| MssqlError::Query(format!("Invalid date: {e}")))?;
-                    Ok(Box::new(d))
-                }
-                Some("time") => {
-                    let t: chrono::NaiveTime = s
-                        .parse()
-                        .map_err(|e| MssqlError::Query(format!("Invalid time: {e}")))?;
-                    Ok(Box::new(t))
-                }
-                Some("datetime" | "datetime2") => {
-                    let dt = parse_datetime(s)?;
-                    Ok(Box::new(dt))
-                }
-                Some("datetimeoffset") => {
-                    let dt: chrono::DateTime<chrono::FixedOffset> = s
-                        .parse()
-                        .map_err(|e| MssqlError::Query(format!("Invalid datetimeoffset: {e}")))?;
-                    Ok(Box::new(dt))
-                }
-                Some("varbinary") => {
-                    let bytes = base64::Engine::decode(
-                        &base64::engine::general_purpose::STANDARD,
-                        s,
-                    )
-                    .map_err(|e| MssqlError::Query(format!("Invalid base64: {e}")))?;
-                    Ok(Box::new(bytes))
-                }
-                _ => Ok(Box::new(s.clone())),
-            }
-        }
-        serde_json::Value::Array(_) | serde_json::Value::Object(_) => {
-            Ok(Box::new(serde_json::to_string(&param.value).unwrap()))
-        }
-    }
-}
-
-/// Convert a SerializedParam to an SqlValue for literal embedding
-/// (used in OUTPUT param batches where we can't use parameterized queries).
-pub fn param_to_sql_value(param: &SerializedParam) -> Result<SqlValue> {
-    match &param.value {
-        serde_json::Value::Null => Ok(SqlValue::Null),
-        serde_json::Value::Bool(b) => Ok(SqlValue::Bool(*b)),
-        serde_json::Value::Number(n) => {
-            if let Some(i) = n.as_i64() {
-                match param.param_type.as_deref() {
-                    Some("tinyint") => Ok(SqlValue::TinyInt(i as u8)),
-                    Some("smallint") => Ok(SqlValue::SmallInt(i as i16)),
-                    Some("int") => Ok(SqlValue::Int(i as i32)),
-                    Some("bigint") => Ok(SqlValue::BigInt(i)),
-                    Some("float") | Some("real") => Ok(SqlValue::Double(i as f64)),
-                    _ => {
-                        if (i32::MIN as i64..=i32::MAX as i64).contains(&i) {
-                            Ok(SqlValue::Int(i as i32))
-                        } else {
-                            Ok(SqlValue::BigInt(i))
-                        }
-                    }
-                }
-            } else if let Some(f) = n.as_f64() {
-                Ok(SqlValue::Double(f))
-            } else {
-                Err(MssqlError::Query(format!("Unsupported number: {n}")))
-            }
-        }
-        serde_json::Value::String(s) => {
-            match param.param_type.as_deref() {
-                Some("uniqueidentifier") => {
-                    let uuid: uuid::Uuid = s
-                        .parse()
-                        .map_err(|e| MssqlError::Query(format!("Invalid UUID: {e}")))?;
-                    Ok(SqlValue::Uuid(uuid))
-                }
-                Some("date") => {
-                    let d: chrono::NaiveDate = s
-                        .parse()
-                        .map_err(|e| MssqlError::Query(format!("Invalid date: {e}")))?;
-                    Ok(SqlValue::Date(d))
-                }
-                Some("time") => {
-                    let t: chrono::NaiveTime = s
-                        .parse()
-                        .map_err(|e| MssqlError::Query(format!("Invalid time: {e}")))?;
-                    Ok(SqlValue::Time(t))
-                }
-                Some("datetime" | "datetime2") => {
-                    let dt = parse_datetime(s)?;
-                    Ok(SqlValue::DateTime(dt))
-                }
-                Some("datetimeoffset") => {
-                    let dt: chrono::DateTime<chrono::FixedOffset> = s
-                        .parse()
-                        .map_err(|e| MssqlError::Query(format!("Invalid datetimeoffset: {e}")))?;
-                    Ok(SqlValue::DateTimeOffset(dt))
-                }
-                Some("varbinary") => {
-                    let bytes = base64::Engine::decode(
-                        &base64::engine::general_purpose::STANDARD,
-                        s,
-                    )
-                    .map_err(|e| MssqlError::Query(format!("Invalid base64: {e}")))?;
-                    Ok(SqlValue::Binary(bytes.into()))
-                }
-                _ => Ok(SqlValue::String(s.clone())),
-            }
-        }
-        serde_json::Value::Array(_) | serde_json::Value::Object(_) => {
-            Ok(SqlValue::String(serde_json::to_string(&param.value).unwrap()))
-        }
-    }
-}
-
-fn parse_datetime(s: &str) -> Result<chrono::NaiveDateTime> {
-    // Try ISO 8601 first, then common SQL Server formats
-    if let Ok(dt) = chrono::NaiveDateTime::parse_from_str(s, "%Y-%m-%dT%H:%M:%S%.f") {
-        return Ok(dt);
-    }
-    if let Ok(dt) = chrono::NaiveDateTime::parse_from_str(s, "%Y-%m-%dT%H:%M:%S") {
-        return Ok(dt);
-    }
-    if let Ok(dt) = chrono::NaiveDateTime::parse_from_str(s, "%Y-%m-%d %H:%M:%S%.f") {
-        return Ok(dt);
-    }
-    if let Ok(dt) = chrono::NaiveDateTime::parse_from_str(s, "%Y-%m-%d %H:%M:%S") {
-        return Ok(dt);
-    }
-    // Try parsing as DateTime<FixedOffset> and strip timezone
-    if let Ok(dt) = chrono::DateTime::parse_from_rfc3339(s) {
-        return Ok(dt.naive_utc());
-    }
-    Err(MssqlError::Query(format!("Invalid datetime: {s}")))
-}
-
 // ── SQL literal conversion (for OUTPUT param batches) ─────────
 
-/// Convert an SqlValue to a SQL literal string for embedding in
+/// Convert a param value to a SQL literal string for embedding in
 /// simple_query batches (OUTPUT params, etc.).
-pub fn sql_value_to_literal(val: &SqlValue) -> String {
-    match val {
-        SqlValue::Null => "NULL".to_string(),
-        SqlValue::Bool(b) => if *b { "1" } else { "0" }.to_string(),
-        SqlValue::TinyInt(n) => n.to_string(),
-        SqlValue::SmallInt(n) => n.to_string(),
-        SqlValue::Int(n) => n.to_string(),
-        SqlValue::BigInt(n) => n.to_string(),
-        SqlValue::Float(n) => {
-            if n.is_nan() || n.is_infinite() { "NULL".to_string() }
-            else { n.to_string() }
+pub fn param_to_literal(param: &SerializedParam) -> Result<String> {
+    match &param.value {
+        serde_json::Value::Null => Ok("NULL".to_string()),
+        serde_json::Value::Bool(b) => Ok(if *b { "1" } else { "0" }.to_string()),
+        serde_json::Value::Number(n) => {
+            if let Some(f) = n.as_f64() {
+                if f.is_nan() || f.is_infinite() {
+                    return Ok("NULL".to_string());
+                }
+            }
+            Ok(n.to_string())
         }
-        SqlValue::Double(n) => {
-            if n.is_nan() || n.is_infinite() { "NULL".to_string() }
-            else { n.to_string() }
+        serde_json::Value::String(s) => {
+            match param.param_type.as_deref() {
+                Some("uniqueidentifier") => {
+                    uuid::Uuid::parse_str(s)
+                        .map_err(|e| MssqlError::Query(format!("Invalid UUID: {e}")))?;
+                    Ok(format!("'{s}'"))
+                }
+                Some("varbinary") => {
+                    use base64::Engine;
+                    let bytes = base64::engine::general_purpose::STANDARD
+                        .decode(s)
+                        .map_err(|e| MssqlError::Query(format!("Invalid base64: {e}")))?;
+                    if bytes.is_empty() {
+                        Ok("CAST(0x AS VARBINARY(MAX))".to_string())
+                    } else {
+                        let hex: String = bytes.iter().map(|b| format!("{b:02X}")).collect();
+                        Ok(format!("0x{hex}"))
+                    }
+                }
+                _ => Ok(format!("N'{}'", s.replace('\'', "''"))),
+            }
         }
-        SqlValue::String(s) => format!("N'{}'", s.replace('\'', "''")),
-        SqlValue::Binary(bytes) => {
-            let hex: String = bytes.iter().map(|b| format!("{b:02X}")).collect();
-            format!("0x{hex}")
+        serde_json::Value::Array(_) | serde_json::Value::Object(_) => {
+            let json_str = serde_json::to_string(&param.value).unwrap();
+            Ok(format!("N'{}'", json_str.replace('\'', "''")))
         }
-        SqlValue::Uuid(u) => format!("'{u}'"),
-        SqlValue::Date(d) => format!("'{d}'"),
-        SqlValue::Time(t) => format!("'{t}'"),
-        SqlValue::DateTime(dt) => format!("'{dt}'"),
-        SqlValue::DateTimeOffset(dt) => format!("'{dt}'"),
-        _ => "NULL".to_string(),
     }
 }
 
@@ -362,162 +202,322 @@ pub fn sql_type_for_declare(type_hint: &str) -> Result<&'static str> {
     }
 }
 
-// ── Row to JSON conversion ────────────────────────────────────
+// ── ODBC cursor → JSON helpers ──────────────────────────────────
 
-/// Convert a Row from mssql-client to a JSON object.
-pub fn row_to_json(row: &Row) -> serde_json::Value {
-    let mut map = serde_json::Map::new();
-    for col in row.columns() {
-        let value = match row.get_raw(col.index) {
-            None | Some(SqlValue::Null) => serde_json::Value::Null,
-            Some(SqlValue::Bool(b)) => serde_json::Value::Bool(b),
-            Some(SqlValue::TinyInt(n)) => serde_json::json!(n),
-            Some(SqlValue::SmallInt(n)) => serde_json::json!(n),
-            Some(SqlValue::Int(n)) => serde_json::json!(n),
-            Some(SqlValue::BigInt(n)) => {
+/// Read all rows from an ODBC cursor into a Vec of JSON objects.
+/// Uses text-mode fetching: all column values come back as strings,
+/// which we then parse based on column metadata.
+///
+/// This is also used by bulk.rs for reading @@ROWCOUNT results.
+pub fn cursor_to_json_rows_internal(cursor: impl Cursor) -> Result<Vec<serde_json::Value>> {
+    cursor_to_json_rows(cursor)
+}
+
+/// Read all rows from a single result set of an ODBC cursor.
+/// Takes ownership of the cursor, reads rows, then returns the cursor
+/// so `more_results()` can be called on it.
+fn read_result_set_owned<C: Cursor>(mut cursor: C) -> Result<(Vec<serde_json::Value>, C)> {
+    let num_cols = cursor.num_result_cols().map_err(MssqlError::from)? as u16;
+    if num_cols == 0 {
+        return Ok((vec![], cursor));
+    }
+
+    // Collect column names and types
+    let mut col_names: Vec<String> = Vec::with_capacity(num_cols as usize);
+    let mut col_types: Vec<i16> = Vec::with_capacity(num_cols as usize);
+    for i in 1..=num_cols {
+        let desc = cursor.col_data_type(i).map_err(MssqlError::from)?;
+        let name = cursor.col_name(i).map_err(MssqlError::from)?;
+        col_names.push(name);
+        col_types.push(odbc_data_type_to_hint(&desc));
+    }
+
+    let batch_size = 1000;
+    let max_str_len = 65536;
+    let buffer = TextRowSet::for_cursor(batch_size, &mut cursor, Some(max_str_len))
+        .map_err(|e| MssqlError::Query(format!("Failed to create row buffer: {e}")))?;
+    let mut block_cursor = cursor
+        .bind_buffer(buffer)
+        .map_err(|e| MssqlError::Query(format!("Failed to bind buffer: {e}")))?;
+
+    let mut rows = Vec::new();
+
+    while let Some(batch) = block_cursor.fetch().map_err(MssqlError::from)? {
+        let num_rows = batch.num_rows();
+        for row_idx in 0..num_rows {
+            let mut map = serde_json::Map::with_capacity(num_cols as usize);
+            for col_idx in 0..num_cols as usize {
+                let value = match batch.at(col_idx, row_idx) {
+                    Some(bytes) => {
+                        let text = String::from_utf8_lossy(bytes);
+                        text_to_json_value(&text, col_types[col_idx])
+                    }
+                    None => serde_json::Value::Null,
+                };
+                map.insert(col_names[col_idx].clone(), value);
+            }
+            rows.push(serde_json::Value::Object(map));
+        }
+    }
+
+    // Unbind the buffer to get the cursor back for more_results()
+    let (cursor, _buffer) = block_cursor.unbind().map_err(MssqlError::from)?;
+
+    Ok((rows, cursor))
+}
+
+fn cursor_to_json_rows(cursor: impl Cursor) -> Result<Vec<serde_json::Value>> {
+    let (rows, _cursor) = read_result_set_owned(cursor)?;
+    Ok(rows)
+}
+
+/// Collect all result sets from a statement execution.
+/// Uses `more_results()` to iterate through multiple result sets.
+fn collect_all_result_sets(
+    conn: &Connection<'static>,
+    sql: &str,
+) -> Result<Vec<Vec<serde_json::Value>>> {
+    let mut all_sets: Vec<Vec<serde_json::Value>> = Vec::new();
+
+    if let Some(cursor) = conn.execute(sql, ()).map_err(MssqlError::from)? {
+        // Read first result set (returns cursor for more_results)
+        let (rows, cursor) = read_result_set_owned(cursor)?;
+        all_sets.push(rows);
+
+        // Iterate remaining result sets
+        let mut maybe_next = cursor.more_results().map_err(MssqlError::from)?;
+        while let Some(next_cursor) = maybe_next {
+            let (rows, cursor) = read_result_set_owned(next_cursor)?;
+            all_sets.push(rows);
+            maybe_next = cursor.more_results().map_err(MssqlError::from)?;
+        }
+    }
+
+    Ok(all_sets)
+}
+
+/// Map ODBC DataType to a numeric hint for JSON conversion.
+/// Positive = numeric, negative = special handling.
+const HINT_STRING: i16 = 0;
+const HINT_INT: i16 = 1;
+const HINT_BIGINT: i16 = 2;
+const HINT_FLOAT: i16 = 3;
+const HINT_BIT: i16 = 4;
+const HINT_BINARY: i16 = 5;
+const HINT_DECIMAL: i16 = 6;
+
+fn odbc_data_type_to_hint(dt: &odbc_api::DataType) -> i16 {
+    use odbc_api::DataType;
+    match dt {
+        DataType::TinyInt => HINT_INT,
+        DataType::SmallInt => HINT_INT,
+        DataType::Integer => HINT_INT,
+        DataType::BigInt => HINT_BIGINT,
+        DataType::Float { .. } => HINT_FLOAT,
+        DataType::Real => HINT_FLOAT,
+        DataType::Double => HINT_FLOAT,
+        DataType::Bit => HINT_BIT,
+        DataType::Binary { .. } | DataType::Varbinary { .. } | DataType::LongVarbinary { .. } => {
+            HINT_BINARY
+        }
+        DataType::Decimal { .. } | DataType::Numeric { .. } => HINT_DECIMAL,
+        _ => HINT_STRING,
+    }
+}
+
+/// Convert text (from ODBC) + type hint to a JSON value.
+fn text_to_json_value(text: &str, hint: i16) -> serde_json::Value {
+    match hint {
+        HINT_INT => {
+            if let Ok(n) = text.parse::<i32>() {
+                serde_json::json!(n)
+            } else {
+                serde_json::Value::String(text.to_string())
+            }
+        }
+        HINT_BIGINT => {
+            if let Ok(n) = text.parse::<i64>() {
                 // JavaScript safe integer range
                 if (-(1i64 << 53)..=(1i64 << 53)).contains(&n) {
                     serde_json::json!(n)
                 } else {
                     serde_json::Value::String(n.to_string())
                 }
+            } else {
+                serde_json::Value::String(text.to_string())
             }
-            Some(SqlValue::Float(n)) => serde_json::json!(n),
-            Some(SqlValue::Double(n)) => serde_json::json!(n),
-            Some(SqlValue::String(s)) => serde_json::Value::String(s),
-            Some(SqlValue::Binary(bytes)) => {
-                serde_json::Value::String(
-                    base64::Engine::encode(&base64::engine::general_purpose::STANDARD, &bytes),
-                )
+        }
+        HINT_FLOAT => {
+            if let Ok(f) = text.parse::<f64>() {
+                serde_json::json!(f)
+            } else {
+                serde_json::Value::String(text.to_string())
             }
-            Some(SqlValue::Uuid(u)) => serde_json::Value::String(u.to_string()),
-            Some(SqlValue::Date(d)) => serde_json::Value::String(d.to_string()),
-            Some(SqlValue::Time(t)) => serde_json::Value::String(t.to_string()),
-            Some(SqlValue::DateTime(dt)) => serde_json::Value::String(dt.to_string()),
-            Some(SqlValue::DateTimeOffset(dt)) => {
-                serde_json::Value::String(dt.to_rfc3339())
+        }
+        HINT_BIT => {
+            serde_json::Value::Bool(text == "1" || text.eq_ignore_ascii_case("true"))
+        }
+        HINT_BINARY => {
+            // ODBC TextRowSet returns binary data as hex string (e.g. "48656C6C6F").
+            // We decode the hex to bytes, then base64-encode for the TS layer.
+            use base64::Engine;
+            match hex_to_bytes(text) {
+                Some(bytes) => serde_json::Value::String(
+                    base64::engine::general_purpose::STANDARD.encode(&bytes),
+                ),
+                None => {
+                    // Fallback: treat as raw bytes if hex decode fails
+                    serde_json::Value::String(
+                        base64::engine::general_purpose::STANDARD.encode(text.as_bytes()),
+                    )
+                }
             }
-            Some(SqlValue::Xml(s)) => serde_json::Value::String(s),
-            Some(other) => serde_json::Value::String(format!("{other:?}")),
-        };
-        map.insert(col.name.clone(), value);
+        }
+        HINT_DECIMAL => {
+            // Return decimals as strings to preserve precision
+            serde_json::Value::String(text.to_string())
+        }
+        _ => {
+            // String types: dates, times, GUIDs, XML, etc.
+            serde_json::Value::String(text.to_string())
+        }
     }
-    serde_json::Value::Object(map)
+}
+
+/// Decode a hex string (e.g. "48656C6C6F") to bytes.
+fn hex_to_bytes(hex: &str) -> Option<Vec<u8>> {
+    if hex.len() % 2 != 0 {
+        return None;
+    }
+    let mut bytes = Vec::with_capacity(hex.len() / 2);
+    for chunk in hex.as_bytes().chunks(2) {
+        let hi = hex_digit(chunk[0])?;
+        let lo = hex_digit(chunk[1])?;
+        bytes.push((hi << 4) | lo);
+    }
+    Some(bytes)
+}
+
+fn hex_digit(b: u8) -> Option<u8> {
+    match b {
+        b'0'..=b'9' => Some(b - b'0'),
+        b'a'..=b'f' => Some(b - b'a' + 10),
+        b'A'..=b'F' => Some(b - b'A' + 10),
+        _ => None,
+    }
+}
+
+// ── Build SQL with embedded parameter literals ──────────────────
+
+/// For parameterized queries, we embed parameter values directly into the SQL
+/// as literals. This is simpler than ODBC parameter binding and works
+/// correctly with all SQL Server types. Named parameters are rewritten to
+/// positional literals.
+///
+/// Security: All string values are properly escaped (single quotes doubled).
+/// This is an internal function — the SQL never comes from untrusted sources
+/// (it's always from the TS layer which already does its own escaping).
+fn build_sql_with_params(cmd: &SerializedCommand) -> Result<String> {
+    if cmd.params.is_empty() {
+        return Ok(cmd.sql.clone());
+    }
+
+    let (rewritten_sql, order) = rewrite_named_params(&cmd.sql, &cmd.params);
+
+    // Replace @P1, @P2, ... with literal values
+    let mut result = rewritten_sql;
+    // Process in reverse order to avoid offset issues
+    for (pos_idx, &param_idx) in order.iter().enumerate().rev() {
+        let placeholder = format!("@P{}", pos_idx + 1);
+        let literal = param_to_literal(&cmd.params[param_idx])?;
+        result = result.replacen(&placeholder, &literal, 1);
+    }
+
+    Ok(result)
 }
 
 // ── Query execution ───────────────────────────────────────────
 
 /// Execute a query and return a JSON array of rows.
-pub async fn execute_query(
-    client: &mut Client<Ready>,
+pub fn execute_query(
+    conn: &Connection<'static>,
     cmd: &SerializedCommand,
 ) -> Result<String> {
-    let (rewritten_sql, order) = rewrite_named_params(&cmd.sql, &cmd.params);
-    let owned_values = build_param_boxes(&cmd.params, &order)?;
-    let param_refs: Vec<&(dyn ToSql + Sync)> = owned_values
-        .iter()
-        .map(|v| &**v as &(dyn ToSql + Sync))
-        .collect();
+    let sql = build_sql_with_params(cmd)?;
 
-    let stream = if param_refs.is_empty() {
-        client.query(&cmd.sql, &[]).await
-    } else {
-        client.query(&rewritten_sql, &param_refs).await
+    match conn.execute(&sql, ()).map_err(MssqlError::from)? {
+        Some(cursor) => {
+            let rows = cursor_to_json_rows(cursor)?;
+            Ok(serde_json::to_string(&rows).unwrap())
+        }
+        None => Ok("[]".to_string()),
     }
-    .map_err(MssqlError::from)?;
-
-    let mut rows_json = Vec::new();
-    for result in stream {
-        let row: Row = result.map_err(MssqlError::from)?;
-        rows_json.push(row_to_json(&row));
-    }
-
-    Ok(serde_json::to_string(&rows_json).unwrap())
 }
 
 /// Execute a non-query and return JSON { rowsAffected }.
-pub async fn execute_nonquery(
-    client: &mut Client<Ready>,
+pub fn execute_nonquery(
+    conn: &Connection<'static>,
     cmd: &SerializedCommand,
 ) -> Result<String> {
-    let (rewritten_sql, order) = rewrite_named_params(&cmd.sql, &cmd.params);
-    let owned_values = build_param_boxes(&cmd.params, &order)?;
-    let param_refs: Vec<&(dyn ToSql + Sync)> = owned_values
-        .iter()
-        .map(|v| &**v as &(dyn ToSql + Sync))
-        .collect();
+    let sql = build_sql_with_params(cmd)?;
 
-    let rows_affected = if param_refs.is_empty() {
-        client.execute(&cmd.sql, &[]).await
-    } else {
-        client.execute(&rewritten_sql, &param_refs).await
+    // Execute via conn.execute() which doesn't hold a borrow on a statement.
+    // For DML (no cursor), we use a separate approach to get row_count.
+    match conn.execute(&sql, ()).map_err(MssqlError::from)? {
+        Some(cursor) => {
+            // SELECT or similar — consume cursor, rowsAffected is 0
+            let _ = cursor_to_json_rows(cursor)?;
+            Ok(serde_json::json!({ "rowsAffected": 0 }).to_string())
+        }
+        None => {
+            // DML (INSERT/UPDATE/DELETE) — no cursor.
+            // Get row count by executing a separate @@ROWCOUNT query.
+            let rows_affected = match conn.execute("SELECT @@ROWCOUNT AS __rc", ()).map_err(MssqlError::from)? {
+                Some(cursor) => {
+                    let rows = cursor_to_json_rows(cursor)?;
+                    rows.first()
+                        .and_then(|r| r.get("__rc"))
+                        .and_then(|v| v.as_i64())
+                        .unwrap_or(0)
+                }
+                None => 0,
+            };
+            Ok(serde_json::json!({ "rowsAffected": rows_affected }).to_string())
+        }
     }
-    .map_err(MssqlError::from)?;
-
-    Ok(serde_json::json!({ "rowsAffected": rows_affected }).to_string())
 }
 
 /// Execute a stored procedure or complex query and return JSON with
 /// result sets, rows affected, and output parameters.
-pub async fn execute_exec(
-    client: &mut Client<Ready>,
+pub fn execute_exec(
+    conn: &Connection<'static>,
     cmd: &SerializedCommand,
 ) -> Result<String> {
     let has_output = cmd.params.iter().any(|p| p.output);
 
     if has_output {
-        execute_exec_with_output(client, cmd).await
+        execute_exec_with_output(conn, cmd)
     } else {
-        execute_exec_simple(client, cmd).await
+        execute_exec_simple(conn, cmd)
     }
 }
 
-/// exec without OUTPUT params — use query_multiple to collect result sets.
-async fn execute_exec_simple(
-    client: &mut Client<Ready>,
+/// exec without OUTPUT params — collect result sets.
+fn execute_exec_simple(
+    conn: &Connection<'static>,
     cmd: &SerializedCommand,
 ) -> Result<String> {
-    let (rewritten_sql, order) = rewrite_named_params(&cmd.sql, &cmd.params);
-    let owned_values = build_param_boxes(&cmd.params, &order)?;
-    let param_refs: Vec<&(dyn ToSql + Sync)> = owned_values
-        .iter()
-        .map(|v| &**v as &(dyn ToSql + Sync))
-        .collect();
+    let sql = build_sql_with_params(cmd)?;
 
     // Append SELECT @@ROWCOUNT to capture rows affected
-    let sql_with_rc = if param_refs.is_empty() {
-        format!("{}; SELECT @@ROWCOUNT AS __rc", cmd.sql)
-    } else {
-        format!("{rewritten_sql}; SELECT @@ROWCOUNT AS __rc")
-    };
-
-    let mut multi = client
-        .query_multiple(&sql_with_rc, &param_refs)
-        .await
-        .map_err(MssqlError::from)?;
+    let sql_with_rc = format!("{sql}; SELECT @@ROWCOUNT AS __rc");
 
     let mut result_sets: Vec<Vec<serde_json::Value>> = Vec::new();
     let mut rows_affected: i64 = 0;
 
-    loop {
-        let mut current_set = Vec::new();
-        while let Some(row) = multi.next_row().await.map_err(MssqlError::from)? {
-            let json = row_to_json(&row);
-            // Check if this is the __rc sentinel
-            if let Some(rc) = json.get("__rc") {
-                if let Some(n) = rc.as_i64() {
-                    rows_affected = n;
-                    continue;
-                }
-            }
-            current_set.push(json);
-        }
-        if !current_set.is_empty() {
-            result_sets.push(current_set);
-        }
-        if !multi.next_result().await.map_err(MssqlError::from)? {
-            break;
-        }
+    let all_sets = collect_all_result_sets(conn, &sql_with_rc)?;
+    for rows in all_sets {
+        process_result_set_rows(rows, &[], &mut result_sets, &mut rows_affected, &mut serde_json::Map::new());
     }
 
     Ok(serde_json::json!({
@@ -528,9 +528,9 @@ async fn execute_exec_simple(
     .to_string())
 }
 
-/// exec with OUTPUT params — build a simple_query batch.
-async fn execute_exec_with_output(
-    client: &mut Client<Ready>,
+/// exec with OUTPUT params — build a batch with DECLARE/EXEC/SELECT.
+fn execute_exec_with_output(
+    conn: &Connection<'static>,
     cmd: &SerializedCommand,
 ) -> Result<String> {
     // Build DECLARE + EXEC batch with OUTPUT params
@@ -549,8 +549,8 @@ async fn execute_exec_with_output(
             output_names.push(clean.to_string());
             // If the param has an input value too, set it
             if !param.value.is_null() {
-                let val = param_to_sql_value(param)?;
-                batch.push_str(&format!("SET @{clean} = {};\n", sql_value_to_literal(&val)));
+                let val = param_to_literal(param)?;
+                batch.push_str(&format!("SET @{clean} = {val};\n"));
             }
         }
     }
@@ -570,8 +570,8 @@ async fn execute_exec_with_output(
             if param.output {
                 param_parts.push(format!("@{clean} = @{clean} OUTPUT"));
             } else {
-                let val = param_to_sql_value(param)?;
-                param_parts.push(format!("@{clean} = {}", sql_value_to_literal(&val)));
+                let val = param_to_literal(param)?;
+                param_parts.push(format!("@{clean} = {val}"));
             }
         }
         batch.push_str(&param_parts.join(", "));
@@ -592,47 +592,13 @@ async fn execute_exec_with_output(
     batch.push_str("SELECT @@ROWCOUNT AS __rc;\n");
 
     // Execute the batch
-    let mut multi = client
-        .query_multiple(&batch, &[])
-        .await
-        .map_err(MssqlError::from)?;
-
     let mut result_sets: Vec<Vec<serde_json::Value>> = Vec::new();
     let mut rows_affected: i64 = 0;
     let mut output_params = serde_json::Map::new();
 
-    loop {
-        let mut current_set = Vec::new();
-        while let Some(row) = multi.next_row().await.map_err(MssqlError::from)? {
-            let json = row_to_json(&row);
-            // Check for __rc sentinel
-            if let Some(rc) = json.get("__rc") {
-                if let Some(n) = rc.as_i64() {
-                    rows_affected = n;
-                    continue;
-                }
-            }
-            // Check for output params (columns match output_names)
-            if !output_names.is_empty() {
-                let obj = json.as_object().unwrap();
-                let is_output_row = output_names
-                    .iter()
-                    .all(|n| obj.contains_key(n));
-                if is_output_row && obj.len() == output_names.len() {
-                    for (k, v) in obj {
-                        output_params.insert(k.clone(), v.clone());
-                    }
-                    continue;
-                }
-            }
-            current_set.push(json);
-        }
-        if !current_set.is_empty() {
-            result_sets.push(current_set);
-        }
-        if !multi.next_result().await.map_err(MssqlError::from)? {
-            break;
-        }
+    let all_sets = collect_all_result_sets(conn, &batch)?;
+    for rows in all_sets {
+        process_result_set_rows(rows, &output_names, &mut result_sets, &mut rows_affected, &mut output_params);
     }
 
     Ok(serde_json::json!({
@@ -643,52 +609,59 @@ async fn execute_exec_with_output(
     .to_string())
 }
 
-/// Execute a query and return all rows for streaming.
-pub async fn execute_query_stream(
-    client: &mut Client<Ready>,
-    cmd: &SerializedCommand,
-) -> Result<Vec<Row>> {
-    let (rewritten_sql, order) = rewrite_named_params(&cmd.sql, &cmd.params);
-    let owned_values = build_param_boxes(&cmd.params, &order)?;
-    let param_refs: Vec<&(dyn ToSql + Sync)> = owned_values
-        .iter()
-        .map(|v| &**v as &(dyn ToSql + Sync))
-        .collect();
-
-    let stream = if param_refs.is_empty() {
-        client.query(&cmd.sql, &[]).await
-    } else {
-        client.query(&rewritten_sql, &param_refs).await
+fn process_result_set_rows(
+    rows: Vec<serde_json::Value>,
+    output_names: &[String],
+    result_sets: &mut Vec<Vec<serde_json::Value>>,
+    rows_affected: &mut i64,
+    output_params: &mut serde_json::Map<String, serde_json::Value>,
+) {
+    let mut current_set = Vec::new();
+    for json in rows {
+        // Check for __rc sentinel
+        if let Some(rc) = json.get("__rc") {
+            if let Some(n) = rc.as_i64() {
+                *rows_affected = n;
+                continue;
+            }
+        }
+        // Check for output params
+        if !output_names.is_empty() {
+            if let Some(obj) = json.as_object() {
+                let is_output_row = output_names.iter().all(|n| obj.contains_key(n));
+                if is_output_row && obj.len() == output_names.len() {
+                    for (k, v) in obj {
+                        output_params.insert(k.clone(), v.clone());
+                    }
+                    continue;
+                }
+            }
+        }
+        current_set.push(json);
     }
-    .map_err(MssqlError::from)?;
-
-    let mut rows = Vec::new();
-    for result in stream {
-        let row: Row = result.map_err(MssqlError::from)?;
-        rows.push(row);
+    if !current_set.is_empty() {
+        result_sets.push(current_set);
     }
-    Ok(rows)
 }
 
-// ── Helpers ───────────────────────────────────────────────────
+/// Execute a query and return all rows as JSON values for streaming.
+pub fn execute_query_stream(
+    conn: &Connection<'static>,
+    cmd: &SerializedCommand,
+) -> Result<Vec<serde_json::Value>> {
+    let sql = build_sql_with_params(cmd)?;
 
-fn build_param_boxes(
-    params: &[SerializedParam],
-    order: &[usize],
-) -> Result<Vec<Box<dyn ToSql + Sync>>> {
-    let mut all_values: Vec<Box<dyn ToSql + Sync>> = Vec::with_capacity(params.len());
-    for param in params {
-        all_values.push(param_to_boxed(param)?);
+    match conn.execute(&sql, ()).map_err(MssqlError::from)? {
+        Some(cursor) => cursor_to_json_rows(cursor),
+        None => Ok(vec![]),
     }
-    // Reorder according to the named-param mapping.
-    // We need to rebuild from params since Box isn't Clone.
-    let mut ordered: Vec<Box<dyn ToSql + Sync>> = Vec::with_capacity(order.len());
-    for &idx in order {
-        ordered.push(param_to_boxed(&params[idx])?);
-    }
-    // Drop unused all_values
-    drop(all_values);
-    Ok(ordered)
+}
+
+/// Execute a simple SQL statement (no result set expected).
+/// Used for transactions (BEGIN/COMMIT/ROLLBACK).
+pub fn simple_execute(conn: &Connection<'static>, sql: &str) -> Result<()> {
+    conn.execute(sql, ()).map_err(MssqlError::from)?;
+    Ok(())
 }
 
 #[cfg(test)]

@@ -31,74 +31,26 @@ impl fmt::Debug for MssqlError {
 
 impl std::error::Error for MssqlError {}
 
-impl From<mssql_client::Error> for MssqlError {
-    fn from(e: mssql_client::Error) -> Self {
-        match e {
-            mssql_client::Error::Config(msg) => MssqlError::Config(msg),
-            mssql_client::Error::Connection(msg) => MssqlError::Connection(msg),
-            mssql_client::Error::ConnectionClosed => {
-                MssqlError::Connection("Connection closed".into())
+impl From<odbc_api::Error> for MssqlError {
+    fn from(e: odbc_api::Error) -> Self {
+        match &e {
+            odbc_api::Error::Diagnostics { record, function } => {
+                let state = std::str::from_utf8(&record.state.0).unwrap_or("?????");
+                let message = String::from_utf16_lossy(&record.message);
+                let msg = format!(
+                    "ODBC error in {}: [{}] {}",
+                    function, state, message
+                );
+                // Classify by SQLSTATE prefix
+                if state.starts_with("08") || state.starts_with("28") {
+                    MssqlError::Connection(msg)
+                } else if state == "HYT00" || state == "HYT01" {
+                    MssqlError::Connection(msg)
+                } else {
+                    MssqlError::Query(msg)
+                }
             }
-            mssql_client::Error::ConnectTimeout
-            | mssql_client::Error::ConnectionTimeout
-            | mssql_client::Error::TlsTimeout => {
-                MssqlError::Connection("Connection timeout".into())
-            }
-            mssql_client::Error::CommandTimeout => {
-                MssqlError::Query("Command timeout".into())
-            }
-            mssql_client::Error::Query(msg) => MssqlError::Query(msg),
-            mssql_client::Error::Transaction(msg) => MssqlError::Transaction(msg),
-            mssql_client::Error::Server {
-                number,
-                message,
-                class,
-                ..
-            } => MssqlError::Query(format!(
-                "SQL Server error {number} (severity {class}): {message}"
-            )),
-            mssql_client::Error::Authentication(e) => {
-                MssqlError::Connection(format!("Authentication error: {e}"))
-            }
-            mssql_client::Error::Cancelled => MssqlError::Cancelled,
-            other => MssqlError::Query(format!("{other}")),
-        }
-    }
-}
-
-impl From<mssql_driver_pool::PoolError> for MssqlError {
-    fn from(e: mssql_driver_pool::PoolError) -> Self {
-        use mssql_driver_pool::PoolError;
-        match e {
-            PoolError::Timeout => {
-                MssqlError::Pool("Connection timeout: pool exhausted".into())
-            }
-            PoolError::AcquisitionTimeout(d) => MssqlError::Pool(format!(
-                "Connection timeout after {}ms: pool exhausted",
-                d.as_millis()
-            )),
-            PoolError::PoolClosed => MssqlError::Pool("Pool is closed".into()),
-            PoolError::MaxConnectionsReached { max } => MssqlError::Pool(format!(
-                "Pool exhausted: maximum connections ({max}) reached"
-            )),
-            PoolError::ConnectionCreation(msg) => {
-                MssqlError::Pool(format!("Could not establish connection: {msg}"))
-            }
-            PoolError::Connection(msg) => {
-                MssqlError::Pool(format!("Connection error: {msg}"))
-            }
-            PoolError::UnhealthyConnection(msg) => {
-                MssqlError::Pool(format!("Connection health check failed: {msg}"))
-            }
-            PoolError::ResetFailed(msg) => {
-                MssqlError::Pool(format!("Connection reset failed: {msg}"))
-            }
-            PoolError::Configuration(msg) => {
-                MssqlError::Pool(format!("Pool configuration error: {msg}"))
-            }
-            PoolError::ValidationFailed(msg) => {
-                MssqlError::Pool(format!("Connection validation failed: {msg}"))
-            }
+            _ => MssqlError::Query(format!("ODBC error: {e}")),
         }
     }
 }

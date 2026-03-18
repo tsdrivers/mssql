@@ -18,7 +18,7 @@ the package. Runtime detection happens automatically at first use.
 ## Architecture
 
 ```
-Rust cdylib (mssql-client + mssql-driver-pool + tokio) → C ABI → FFI boundary
+Rust cdylib (odbc-api + Microsoft ODBC Driver 18) → C ABI → FFI boundary
   ↕ u64 handle IDs, JSON strings
 Deno.dlopen / bun:ffi / koffi → RuntimeFFI interface → Core TS classes
   ↑
@@ -43,15 +43,15 @@ and dynamically imports the correct adapter:
 ### Key Decisions
 
 - **FFI via C ABI** — stable across platforms, no WASM TCP limitations
-- **mssql-client with rustls** — pure Rust TDS (supports TDS 7.3–8.0), no
-  OpenSSL dependency
-- **mssql-driver-pool** — built-in connection pooling (replaces bb8)
-- **Embedded tokio runtime** — FFI calls block_on async operations
+- **Microsoft ODBC Driver 18** — native SQL Server driver handling TDS, auth
+  (SQL, SSPI, Kerberos, Azure AD), and encryption
+- **odbc-api crate** — safe Rust ODBC bindings
+- **Simple connection pool** — idle queue with min/max/timeout
 - **u64 opaque handles** — safer than raw pointers across FFI
 - **JSON serialization** across FFI boundary for params/results
 - **std::sync::Mutex** for client access within block_on context
 - **Platform-conditional** features via cfg(windows)
-- **Zero native deps** except FILESTREAM on Windows (lazy detection)
+- **Microsoft ODBC Driver 18** required at runtime (handles TDS, auth, TLS)
 
 ## Public API
 
@@ -236,11 +236,11 @@ matching the current execution environment.
 
 ## Platform Dependencies
 
-| Feature                                   | All Platforms |                    Windows Only                     |
-| ----------------------------------------- | :-----------: | :-------------------------------------------------: |
-| Core (queries, pool, tx, bulk, streaming) | ✅ zero deps  |                                                     |
-| Windows Auth (SSPI)                       |               |                    ✅ zero deps                     |
-| FILESTREAM                                |               | ⚠️ needs Microsoft OLE DB Driver 19 (lazy detected) |
+| Feature                                   |                        Requirement                         |
+| ----------------------------------------- | :--------------------------------------------------------: |
+| Core (queries, pool, tx, bulk, streaming) | Microsoft ODBC Driver 18 for SQL Server                    |
+| Windows Auth (SSPI)                       | ODBC Driver 18 (automatic on Windows, Kerberos on Linux)   |
+| FILESTREAM                                | ODBC Driver 18 + Windows only                              |
 
 ## CI/CD
 

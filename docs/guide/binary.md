@@ -130,47 +130,29 @@ const roundTripped = Uint8Array.from(atob(row.data), (c) => c.charCodeAt(0));
 console.log(new TextDecoder().decode(roundTripped)); // "Hello, world! 🌍"
 ```
 
-## Limitations
+## Empty VARBINARY
 
-### Empty VARBINARY
-
-The underlying `mssql-client` v0.6 driver sends `VARBINARY(0)` for an empty
-`Uint8Array`, which SQL Server rejects. Use a SQL literal instead:
+Empty `Uint8Array` values are supported — the driver automatically generates
+a `CAST(0x AS VARBINARY(MAX))` literal:
 
 ```ts
-// ❌ Fails — driver sends VARBINARY(0), SQL Server rejects it
+// ✅ Works — empty binary is handled correctly
 await cn.execute("INSERT INTO T (data) VALUES (@data)", {
   data: { value: new Uint8Array(0), type: "varbinary" },
 });
-
-// ✅ Correct — use a SQL literal for empty binary
-await cn.execute("INSERT INTO T (data) VALUES (CAST(0x AS VARBINARY(MAX)))");
 ```
 
-### Large Data
+## Large Data
 
-The driver serializes binary data through JSON (base64-encoded), which is
-memory-efficient for small-to-medium BLOBs. For files in the multi-MB range,
-consider [FILESTREAM](./filestream.md) (Windows only) or chunking the data via
-multiple INSERT/UPDATE calls.
+Binary data is serialized through JSON (base64-encoded), which works well for
+BLOBs up to ~10 MB. For larger data, use streaming:
 
-The `btoa(String.fromCharCode(...bytes))` spread approach used internally hits
-JavaScript's argument stack limit (~65,000 elements) for very large arrays.
-Chunking the encode/decode yourself avoids this:
+| Approach | Platform | Best For |
+|---|---|---|
+| Standard query (in-memory) | All | Up to ~10 MB |
+| [Blob Streaming](./blob-streaming) | All | Large reads/writes via `Readable`/`Writable` streams |
+| [FILESTREAM](./filestream) | Windows only | Very large files with native file handle I/O |
 
-```ts
-// Safe base64 encode for large Uint8Array
-function toBase64(bytes: Uint8Array): string {
-  let out = "";
-  for (let i = 0; i < bytes.length; i++) out += String.fromCharCode(bytes[i]);
-  return btoa(out);
-}
-
-// Safe base64 decode to Uint8Array
-function fromBase64(b64: string): Uint8Array {
-  const s = atob(b64);
-  const out = new Uint8Array(s.length);
-  for (let i = 0; i < s.length; i++) out[i] = s.charCodeAt(i);
-  return out;
-}
-```
+See [Blob Streaming](./blob-streaming) for the full API — it provides
+`node:stream` and Web Standard stream interfaces that work identically to the
+FILESTREAM API but on all platforms.

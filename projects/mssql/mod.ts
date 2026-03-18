@@ -121,6 +121,7 @@ export {
   FilestreamWritable,
 } from "./core/filestream.ts";
 export type { FilestreamWebResult } from "./core/filestream.ts";
+export type { BlobTarget } from "./core/blob.ts";
 export { MssqlConnection } from "./core/connection.ts";
 export { MssqlPool } from "./core/pool.ts";
 export { parseConnection } from "./core/config.ts";

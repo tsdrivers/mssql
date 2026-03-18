@@ -40,6 +40,7 @@ export default defineConfig({
           items: [
             { text: "COMB UUIDs", link: "/guide/comb" },
             { text: "UTF-8 Collation", link: "/guide/utf8" },
+            { text: "Blob Streaming", link: "/guide/blob-streaming" },
             { text: "FILESTREAM", link: "/guide/filestream" },
             {
               text: "Runtime Support",
