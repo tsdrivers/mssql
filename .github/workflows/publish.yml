@@ -42,7 +42,7 @@ jobs:
             artifact: mssqlts-windows-aarch64.dll
             lib: mssqlts.dll
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - uses: dtolnay/rust-toolchain@stable
         with:
@@ -85,7 +85,7 @@ jobs:
     needs: build-native
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - uses: denoland/setup-deno@v2
         with:
@@ -100,9 +100,9 @@ jobs:
     needs: build-native
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: 22
           registry-url: "https://registry.npmjs.org"
