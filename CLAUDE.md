@@ -110,8 +110,8 @@ projects/ts-mssql/mod.ts  →  Entry point (runtime detection, lazy FFI init)
 | `core/exec_result.ts` | `ExecResult` — OUTPUT params + multiple result sets |
 | `core/filestream.ts` | `FilestreamHandle` (internal), `FilestreamReadable/Writable/Duplex` (node:stream), web stream helpers |
 | `ffi/deno.ts` | Deno FFI adapter (`Deno.dlopen`, `nonblocking: true`) |
-| `ffi/node.ts` | Node.js FFI adapter (`koffi`) |
-| `ffi/bun.ts` | Bun FFI adapter (`bun:ffi`) |
+| `ffi/node.ts` | Node.js + Bun FFI adapter (`koffi`, async worker threads) |
+| `ffi/bun.ts` | Re-exports `node.ts` (Bun's `bun:ffi` lacks async support) |
 | `ffi/resolve.ts` | Runtime detection, lazy FFI singleton |
 
 **Tests**
@@ -156,9 +156,12 @@ This is an FFI library loaded into a JS runtime. `panic = "abort"` would kill th
 entire Node/Deno/Bun process on any Rust panic. The default `panic = "unwind"` lets
 panics propagate as caught errors, keeping the host process alive.
 
-### Deno `nonblocking: true` semantics
+### Nonblocking FFI across runtimes
 
-FFI symbols marked `nonblocking: true` run on V8's thread pool and return Promises.
+All three runtimes use nonblocking async calls for I/O-bound FFI operations:
+- **Deno:** `nonblocking: true` on symbol definitions runs calls on V8's thread pool
+- **Node.js + Bun:** `koffi`'s `.async()` runs calls on worker threads via callback
+
 Synchronous symbols (`poolRelease`, `disconnect`, `streamClose`) run on the main thread.
 This asymmetry is intentional — release/close operations are fast HashMap removals that
 must complete synchronously before the calling code continues.

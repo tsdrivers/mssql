@@ -9,7 +9,7 @@ needed.
 When you first call `createPool()` or `connect()`, the package:
 
 1. **Detects the runtime** (Deno, Bun, or Node.js)
-2. **Loads the correct FFI adapter** (`Deno.dlopen`, `bun:ffi`, or `koffi`)
+2. **Loads the correct FFI adapter** (`Deno.dlopen` or `koffi`)
 3. **Resolves the native library** using the standard search order
 4. **Caches the result** — subsequent calls reuse the same FFI singleton
 
@@ -21,14 +21,21 @@ FFI initialization starts **eagerly at module evaluation time**. Since Deno's
 
 ### Node.js
 
-Uses [koffi](https://koffi.dev) for FFI binding. `koffi` is listed as an
-`optionalDependency` in `package.json` and is installed automatically. If it's
-missing at runtime, the package attempts to install it on demand via
-`npm install koffi --no-save`.
+Uses [koffi](https://koffi.dev) for FFI binding with nonblocking async calls
+via worker threads. Install alongside the package:
+
+```sh
+npm install @tsdrivers/mssql koffi
+```
 
 ### Bun
 
-Uses the built-in `bun:ffi` module. No additional dependencies needed.
+Also uses [koffi](https://koffi.dev) for nonblocking async FFI support (Bun's
+built-in `bun:ffi` does not support async calls). Install alongside the package:
+
+```sh
+bun add @tsdrivers/mssql koffi
+```
 
 ## Low-Level FFI Access
 

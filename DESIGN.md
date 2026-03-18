@@ -20,7 +20,7 @@ the package. Runtime detection happens automatically at first use.
 ```
 Rust cdylib (odbc-api + Microsoft ODBC Driver 18) → C ABI → FFI boundary
   ↕ u64 handle IDs, JSON strings
-Deno.dlopen / bun:ffi / koffi → RuntimeFFI interface → Core TS classes
+Deno.dlopen / koffi (Node.js + Bun) → RuntimeFFI interface → Core TS classes
   ↑
 @tsdrivers/mssql → detects runtime → loads correct FFI adapter
 ```
@@ -34,9 +34,10 @@ and dynamically imports the correct adapter:
 - **Deno:** FFI initialization starts eagerly at module evaluation time (Deno's
   `dlopen` is synchronous, so the FFI is typically ready before user code calls
   `createPool()`/`connect()`)
-- **Node.js:** Uses `koffi` for FFI (listed as `optionalDependencies`;
-  auto-installed on demand if missing). Lazy initialization on first use
-- **Bun:** Uses `bun:ffi`. Lazy initialization on first use
+- **Node.js:** Uses `koffi` for FFI with nonblocking async calls via worker
+  threads. Lazy initialization on first use
+- **Bun:** Also uses `koffi` (Bun's native `bun:ffi` lacks async support).
+  Lazy initialization on first use
 - A shared `Promise` ensures the backend is resolved only once; concurrent
   callers await the same promise
 

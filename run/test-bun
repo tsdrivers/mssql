@@ -48,17 +48,25 @@ echo "=== Setting up test database ==="
 export MSSQL_SA_CONNECTION
 MSSQL_TEST_CONNECTION="$(deno run -A "$PROJECT_ROOT/run/scripts/db-setup.ts")"
 
-# Step 4: Run tests
+# Step 4: Install Bun dependencies (koffi for FFI)
+echo ""
+echo "=== Installing Bun dependencies ==="
+BUN_TEST_DIR="$PROJECT_ROOT/projects/test/integration/bun"
+cd "$BUN_TEST_DIR"
+bun install
+cd "$PROJECT_ROOT"
+
+# Step 5: Run tests
 export MSSQL_TEST_ENABLED=1
 export MSSQL_TEST_CONNECTION
 
-BUN_TEST_DIR="$PROJECT_ROOT/projects/test/integration/bun"
-
 echo ""
 echo "=== Running Bun integration tests ==="
-bun test "$BUN_TEST_DIR"
+cd "$BUN_TEST_DIR"
+bun test .
+cd "$PROJECT_ROOT"
 
-# Step 5: Teardown test database
+# Step 6: Teardown test database
 echo ""
 echo "=== Tearing down test database ==="
 deno run -A "$PROJECT_ROOT/run/scripts/db-teardown.ts"

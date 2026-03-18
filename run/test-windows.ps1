@@ -165,8 +165,22 @@ try {
 
     # ── Step 6: Bun integration tests ─────────────────────────
 
+    Invoke-Cmd "Installing Bun dependencies (koffi)" {
+        Push-Location $bunTestDir
+        try {
+            bun install
+        } finally {
+            Pop-Location
+        }
+    }
+
     Invoke-Cmd "Running Bun integration tests" {
-        bun test $bunTestDir
+        Push-Location $bunTestDir
+        try {
+            bun test .
+        } finally {
+            Pop-Location
+        }
     }
 
     Write-Host ""

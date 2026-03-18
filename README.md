@@ -51,7 +51,7 @@ target system.
 [npm]: https://www.npmjs.com/org/tsdrivers
 
 A single package supports Deno, Node.js 22+, and Bun. The correct FFI adapter
-(`Deno.dlopen`, `koffi`, or `bun:ffi`) is selected automatically at runtime.
+(`Deno.dlopen` or `koffi`) is selected automatically at runtime.
 
 ## Prerequisites
 
@@ -76,7 +76,7 @@ sudo apt-get update && sudo apt-get install -y msodbcsql18
 deno add jsr:@tsdrivers/mssql
 
 # Bun
-bun add @tsdrivers/mssql
+bun add @tsdrivers/mssql koffi
 
 # Node.js
 npm install @tsdrivers/mssql koffi
@@ -194,7 +194,7 @@ mssql://localhost/mydb?instanceName=SQLEXPRESS
 ```
 Rust cdylib (odbc-api + Microsoft ODBC Driver 18) -> C ABI -> FFI boundary
   | u64 handle IDs, JSON strings
-Deno.dlopen / bun:ffi / koffi -> RuntimeFFI interface -> Core TS classes
+Deno.dlopen / koffi (Node.js + Bun) -> RuntimeFFI interface -> Core TS classes
 ```
 
 The Rust layer communicates with SQL Server via the

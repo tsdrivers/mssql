@@ -1,9 +1,10 @@
 /**
  * Node.js FFI adapter — wraps koffi into RuntimeFFI interface.
  *
- * koffi does not support nonblocking calls, so I/O-bound methods
- * wrap their synchronous results in resolved Promises to satisfy
- * the async RuntimeFFI interface.
+ * I/O-bound symbols use `fn.async(...)` so the native function runs
+ * on a koffi worker thread and returns a Promise, keeping the Node.js
+ * event loop free. Fast local operations (release, close, free) remain
+ * synchronous.
  *
  * @module
  */
@@ -93,6 +94,21 @@ async function getKoffi(): Promise<any> {
 }
 
 /**
+ * Wrap a koffi function's callback-based `.async()` in a Promise.
+ * koffi async calls run the native function on a worker thread and
+ * invoke `(err, result)` on the main thread when done.
+ */
+// deno-lint-ignore no-explicit-any
+function callAsync<T>(fn: any, ...args: unknown[]): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    fn.async(...args, (err: Error | null, result: T) => {
+      if (err) reject(err);
+      else resolve(result);
+    });
+  });
+}
+
+/**
  * Open the native library using koffi and return a RuntimeFFI implementation.
  */
 export async function createFFI(libPath: string): Promise<RuntimeFFI> {
@@ -162,11 +178,11 @@ export async function createFFI(libPath: string): Promise<RuntimeFFI> {
 
   return {
     async poolCreate(configJson: string): Promise<bigint> {
-      return BigInt(mssql_pool_create(configJson));
+      return BigInt(await callAsync(mssql_pool_create, configJson));
     },
 
     async poolAcquire(poolId: bigint): Promise<bigint> {
-      return BigInt(mssql_pool_acquire(poolId));
+      return BigInt(await callAsync(mssql_pool_acquire, poolId));
     },
 
     poolRelease(poolId: bigint, connId: bigint): void {
@@ -178,7 +194,7 @@ export async function createFFI(libPath: string): Promise<RuntimeFFI> {
     },
 
     async connect(configJson: string): Promise<bigint> {
-      return BigInt(mssql_connect(configJson));
+      return BigInt(await callAsync(mssql_connect, configJson));
     },
 
     disconnect(connId: bigint): void {
@@ -186,7 +202,7 @@ export async function createFFI(libPath: string): Promise<RuntimeFFI> {
     },
 
     async query(connId: bigint, cmdJson: string): Promise<string | null> {
-      const ptr = mssql_query(connId, cmdJson);
+      const ptr = await callAsync(mssql_query, connId, cmdJson);
       return readAndFree(ptr);
     },
 
@@ -194,21 +210,21 @@ export async function createFFI(libPath: string): Promise<RuntimeFFI> {
       connId: bigint,
       cmdJson: string,
     ): Promise<string | null> {
-      const ptr = mssql_execute_nonquery(connId, cmdJson);
+      const ptr = await callAsync(mssql_execute_nonquery, connId, cmdJson);
       return readAndFree(ptr);
     },
 
     async exec(connId: bigint, cmdJson: string): Promise<string | null> {
-      const ptr = mssql_exec(connId, cmdJson);
+      const ptr = await callAsync(mssql_exec, connId, cmdJson);
       return readAndFree(ptr);
     },
 
     async queryStream(connId: bigint, cmdJson: string): Promise<bigint> {
-      return BigInt(mssql_query_stream(connId, cmdJson));
+      return BigInt(await callAsync(mssql_query_stream, connId, cmdJson));
     },
 
     async streamNext(cursorId: bigint): Promise<string | null> {
-      const ptr = mssql_stream_next(cursorId);
+      const ptr = await callAsync(mssql_stream_next, cursorId);
       return readAndFree(ptr);
     },
 
@@ -217,7 +233,7 @@ export async function createFFI(libPath: string): Promise<RuntimeFFI> {
     },
 
     async bulkInsert(connId: bigint, reqJson: string): Promise<string | null> {
-      const ptr = mssql_bulk_insert(connId, reqJson);
+      const ptr = await callAsync(mssql_bulk_insert, connId, reqJson);
       return readAndFree(ptr);
     },
 
@@ -225,17 +241,17 @@ export async function createFFI(libPath: string): Promise<RuntimeFFI> {
       connId: bigint,
       txJson: string,
     ): Promise<string | null> {
-      const ptr = mssql_begin_transaction(connId, txJson);
+      const ptr = await callAsync(mssql_begin_transaction, connId, txJson);
       return readAndFree(ptr);
     },
 
     async commit(connId: bigint, txId: string): Promise<string | null> {
-      const ptr = mssql_commit(connId, txId);
+      const ptr = await callAsync(mssql_commit, connId, txId);
       return readAndFree(ptr);
     },
 
     async rollback(connId: bigint, txId: string): Promise<string | null> {
-      const ptr = mssql_rollback(connId, txId);
+      const ptr = await callAsync(mssql_rollback, connId, txId);
       return readAndFree(ptr);
     },
 

@@ -26,14 +26,16 @@ sudo dnf install msodbcsql18
 deno add jsr:@tsdrivers/mssql
 
 # Node.js
-npm install @tsdrivers/mssql
+npm install @tsdrivers/mssql koffi
 
 # Bun
-bun add @tsdrivers/mssql
+bun add @tsdrivers/mssql koffi
 ```
 
 The `@tsdrivers/mssql` package auto-detects your runtime and uses the correct
-FFI adapter (Deno.dlopen, koffi, or bun:ffi) automatically.
+FFI adapter automatically. Deno uses its built-in `Deno.dlopen`; Node.js and
+Bun use [koffi](https://koffi.dev/) which provides nonblocking async FFI calls
+via worker threads.
 
 ## Native Library
 

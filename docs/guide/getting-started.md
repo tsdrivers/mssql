@@ -28,9 +28,8 @@ The library has three layers:
 2. **Core TypeScript** — Runtime-agnostic business logic: connection/pool classes, query serialization, config parsing, binary resolution. Shared by all three runtime adapters.
 
 3. **Runtime adapters** — Thin FFI wrappers for each runtime:
-   - Deno: `Deno.dlopen`
-   - Node.js: [koffi](https://koffi.dev)
-   - Bun: `bun:ffi`
+   - Deno: `Deno.dlopen` (nonblocking via V8 thread pool)
+   - Node.js + Bun: [koffi](https://koffi.dev) (nonblocking via worker threads)
 
 ## Next Steps
 

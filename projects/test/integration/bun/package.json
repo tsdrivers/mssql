@@ -1,0 +1,8 @@
+{
+  "private": true,
+  "type": "module",
+  "description": "Bun integration tests for @tsdrivers/mssql",
+  "dependencies": {
+    "koffi": "^2.9.0"
+  }
+}
