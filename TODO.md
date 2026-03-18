@@ -156,13 +156,14 @@ two new exports: `diagnosticInfo()` and `setDebug()` (from Phase 13.1/13.2).
 - [x] 12.0: Repo restructure (`packages/` → `projects/`, `rust/` →
       `projects/rust-odbc-mssql/`)
 - [x] 12.1: Remove cursor and batch streaming options
-- [x] 12.2: New Rust driver (`projects/rust-odbc-mssql/`) with all 26 FFI symbols
+- [x] 12.2: New Rust driver (`projects/rust-odbc-mssql/`) with all 26 FFI
+      symbols
   - mssql-client + mssql-driver-pool + tokio (replaces tiberius + bb8)
   - Diagnostics (`mssql_diagnostic_info`) and debug (`mssql_set_debug`) built in
   - TS-side: RuntimeFFI interface, FFI adapters, types, and public API updated
 - [x] 12.3: Integration testing — all three runtimes pass (Deno, Node, Bun)
-- [x] 12.4: Cleanup — old driver deleted, renamed to `projects/rust-odbc-mssql/`, docs
-      updated
+- [x] 12.4: Cleanup — old driver deleted, renamed to
+      `projects/rust-odbc-mssql/`, docs updated
 
 ## Phase 13 — Connection Pool Enhancements & Validation
 
@@ -339,12 +340,13 @@ Microsoft's own driver for TDS, auth, and encryption — the same driver that th
 
 **Runtime dependency**: Microsoft ODBC Driver 18 (or 17) for SQL Server must be
 installed on the target system:
+
 - Windows: `winget install Microsoft.ODBC.18`
 - macOS: `brew install microsoft/mssql-release/msodbcsql18`
 - Linux: `msodbcsql18` package from Microsoft's repo
 
-**TypeScript changes**: None. The `RuntimeFFI` interface, `NormalizedConfig` JSON
-shape, and all 24 FFI symbol signatures remain identical.
+**TypeScript changes**: None. The `RuntimeFFI` interface, `NormalizedConfig`
+JSON shape, and all 24 FFI symbol signatures remain identical.
 
 ### 15.0 — Cargo.toml + dependencies ✅
 
@@ -372,13 +374,15 @@ shape, and all 24 FFI symbol signatures remain identical.
 
 ### 15.2 — error.rs (ODBC error mapping) ✅
 
-- [x] Remove `From<mssql_client::Error>` and `From<mssql_driver_pool::PoolError>`
+- [x] Remove `From<mssql_client::Error>` and
+      `From<mssql_driver_pool::PoolError>`
 - [x] Add `From<odbc_api::Error>` with SQLSTATE-based classification
 - [x] Pool errors via local `MssqlError::Pool` variant
 
 ### 15.3 — pool.rs (simple ODBC connection pool) ✅
 
-- [x] Implement `OdbcPool` with idle `VecDeque<Connection>`, min/max/idle_timeout
+- [x] Implement `OdbcPool` with idle `VecDeque<Connection>`,
+      min/max/idle_timeout
 - [x] `get()` — take from idle queue or create new (block up to connect_timeout)
 - [x] `put()` — return to idle queue (drop if over capacity)
 - [x] `status()` — total/idle/in_use/max for diagnostics
@@ -408,7 +412,8 @@ shape, and all 24 FFI symbol signatures remain identical.
 
 ### 15.6 — stream.rs (pre-serialized JSON rows) ✅
 
-- [x] `RowCursor` stores `VecDeque<serde_json::Value>` instead of `VecDeque<Row>`
+- [x] `RowCursor` stores `VecDeque<serde_json::Value>` instead of
+      `VecDeque<Row>`
 - [x] `next_row()` returns `Option<serde_json::Value>` (already JSON)
 
 ### 15.7 — bulk.rs (minimal changes) ✅
@@ -428,8 +433,8 @@ shape, and all 24 FFI symbol signatures remain identical.
 ### 15.9 — filestream.rs + debug.rs ✅
 
 - [x] `debug.rs` — no driver dependency, unchanged
-- [x] `filestream.rs` — migrated from `msoledbsql.dll` to `msodbcsql18.dll`
-      for `OpenSqlFilestream`. The ODBC driver exports this function, so no
+- [x] `filestream.rs` — migrated from `msoledbsql.dll` to `msodbcsql18.dll` for
+      `OpenSqlFilestream`. The ODBC driver exports this function, so no
       additional OLE DB Driver install is needed. Falls back to ODBC Driver 17.
 
 ### 15.10 — Integration testing ✅
@@ -443,8 +448,9 @@ All 283 tests pass on Windows Server 2025 with SQL Server 2025, Windows auth
 - [x] Node.js 24: 37 integration tests (koffi FFI)
 - [x] Bun 1.3: 37 integration tests (bun:ffi)
 - [x] Verify: Windows auth (SSPI), FILESTREAM (node:stream + web streams),
-      transactions, streaming, bulk insert, stored procedures with OUTPUT params,
-      pool dedup/refcounting, binary data round-trips, execute row counts
+      transactions, streaming, bulk insert, stored procedures with OUTPUT
+      params, pool dedup/refcounting, binary data round-trips, execute row
+      counts
 - [x] Node.js koffi resolver: walk up from cwd + NODE_PATH for reliable
       resolution in monorepo / nested test layouts
 
@@ -454,45 +460,65 @@ All 283 tests pass on Windows Server 2025 with SQL Server 2025, Windows auth
 - [x] `cargo test` — 19/19 Rust unit tests pass
 - [x] Binary copied to `.bin/mssqlts-windows-x86_64.dll`
 
-## Phase 16 — Outstanding Items
-
-- [x] Windows: SSPI + FILESTREAM tests verified locally (all 283 tests pass
-      across Deno, Node.js, Bun on Windows Server 2025 + SQL Server 2025)
-- [ ] Windows CI: add `run/test-windows.ps1` to GitHub Actions (Windows runner)
-- [ ] Add Node/Bun integration jobs to ci.yml
-- [ ] README generation script (per-package READMEs from main README)
-- [ ] Build/bundle pipeline for JSR + npm publishing
-- [ ] Publish unified `@tsdrivers/mssql` to JSR and npm
-
-## Phase 17 — VARBINARY(MAX) Blob Streaming (future)
+## Phase 16 — VARBINARY(MAX) Blob Streaming ✅
 
 Cross-platform alternative to FILESTREAM for reading/writing large binary data
-in chunks without loading the entire value into memory.
+in chunks without loading the entire value into memory. Implemented entirely in
+TypeScript using existing query infrastructure — no new FFI symbols needed.
 
-### Read: chunked `SQLGetData`
+### 16.1 — Core blob streaming (`core/blob.ts`) ✅
 
-- [ ] New FFI: `mssql_blob_read_open(conn_id, sql_json)` → cursor_id
-      Executes a query expected to return a single VARBINARY(MAX) column.
-      Uses `CursorRow::get_binary` (ODBC `SQLGetData`) to read in chunks.
-- [ ] New FFI: `mssql_blob_read_chunk(cursor_id, max_bytes)` → base64 or null
-- [ ] New FFI: `mssql_blob_read_close(cursor_id)`
-- [ ] TS API: `cn.readBlob(sql, params?)` → `ReadableStream<Uint8Array>`
+- [x] `BlobTarget` interface: `table`, `column`, `where`, `params?`,
+      `chunkSize?` (default 1 MB)
+- [x] `BlobReadable` (extends `node:stream.Readable`) — reads via
+      `SELECT SUBSTRING(column, @offset, @len)` with transaction
+- [x] `BlobWritable` (extends `node:stream.Writable`) — appends via
+      `UPDATE ... SET column.WRITE(@chunk, NULL, NULL)` with transaction
+- [x] `createBlobReadableStream()` / `createBlobWritableStream()` — Web Standard
+      `ReadableStream` / `WritableStream` factories
+- [x] `bracketEscape()` — multi-part table names (`dbo.Documents` →
+      `[dbo].[Documents]`); already-bracketed names passed through as-is
+- [x] Export `BlobTarget` type from `mod.ts`
 
-### Write: `.WRITE` append pattern
+### 16.2 — Sub-object API on `MssqlConnection` ✅
 
-- [ ] New FFI: `mssql_blob_write(conn_id, sql_json, data_base64)` → bytes_written
-      Executes `UPDATE T SET col.WRITE(@chunk, NULL, NULL) WHERE ...` to append
-      a chunk to an existing VARBINARY(MAX) column.
-- [ ] TS API: `cn.writeBlob(table, column, where, opts?)` → `WritableStream<Uint8Array>`
-      Wraps repeated `.WRITE` appends into a standard `WritableStream`.
+- [x] `cn.fs.open(path, ctx, mode)` — FILESTREAM `node:stream`
+- [x] `cn.fs.openWeb(path, ctx, mode)` — FILESTREAM Web Standard stream
+- [x] `cn.fs.available(database?)` — FILESTREAM availability check
+- [x] `cn.blob.filestream.read(tx, target)` — blob `node:stream.Readable`
+- [x] `cn.blob.filestream.write(tx, target)` — blob `node:stream.Writable`
+- [x] `cn.blob.webstream.read(tx, target)` — blob Web `ReadableStream`
+- [x] `cn.blob.webstream.write(tx, target)` — blob Web `WritableStream`
+- [x] Sub-object accessors via lazy-initialized inner classes
+      (`FilestreamAccessor`, `BlobAccessor`, `BlobFilestreamAccessor`,
+      `BlobWebstreamAccessor`)
 
-### Documentation
+### 16.3 — Documentation ✅
 
-- [ ] Guide page: `docs/guide/blob-streaming.md`
-- [ ] Comparison: blob streaming vs FILESTREAM vs in-memory query
+- [x] Guide page: `docs/guide/blob-streaming.md` — full API reference, examples
+      for both stream types, `BlobTarget` options table, comparison with
+      FILESTREAM (platform, mechanism, performance, max size)
+- [x] Updated `docs/guide/filestream.md` — cross-reference to blob streaming
+- [x] Updated `docs/guide/binary.md` — large data section points to blob
+      streaming
+- [x] Sidebar entry in `docs/.vitepress/config.ts`
+
+### 16.4 — Integration tests ✅
+
+All tests pass across Deno, Node.js, and Bun (41 tests per runtime, 295 total):
+
+- [x] Write + read via `node:stream` (manual chunks, small `chunkSize: 64`)
+- [x] Write + read via Web Standard streams
+- [x] Pipeline via `node:stream` (`pipeline()` with file I/O)
+- [x] Pipeline via Web Standard streams (`pipeTo()` with file I/O)
+
+## Phase 17 — Outstanding Items
+
+- [ ] Add Node/Bun integration jobs to ci.yml
+- [ ] Build/bundle pipeline for JSR + npm publishing
+- [ ] Publish unified `@tsdrivers/mssql` to JSR and npm
 
 ## Phase 18 — SQL Server 2025 Readiness (future)
 
 - [ ] Native JSON data type support
 - [ ] Native VECTOR data type
-- [ ] Add SQL Server 2025 Express to CI test matrix alongside 2022

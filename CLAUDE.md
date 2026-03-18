@@ -192,13 +192,15 @@ files. The shipped binary is stripped.
 
 ## Current State
 
-Phases 1–15 are complete. Phase 15 replaced the Rust TDS-protocol crates
+Phases 1–16 are complete. Phase 15 replaced the Rust TDS-protocol crates
 (`mssql-client` + `mssql-driver-pool`) with Microsoft ODBC Driver 18 via the
 `odbc-api` Rust crate. The ODBC driver handles TDS, auth (SQL, Windows/SSPI,
 Kerberos, Azure AD), and encryption natively. FILESTREAM now uses
 `OpenSqlFilestream` from the ODBC driver DLL directly (no OLE DB dependency).
-All 283 tests pass across Deno, Node.js, and Bun on Windows Server 2025.
-See `TODO.md` for Phase 16 (outstanding items).
+Phase 16 added cross-platform VARBINARY(MAX) blob streaming via `cn.blob.*`
+sub-object API (no new FFI — implemented in TypeScript using existing queries).
+All 295 tests pass across Deno, Node.js, and Bun on Windows Server 2025.
+See `TODO.md` for Phase 17 (SQL Server 2025) and Phase 18 (outstanding items).
 
 ## Code Style
 
