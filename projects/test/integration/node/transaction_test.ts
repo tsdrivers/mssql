@@ -6,7 +6,7 @@
 import { describe, test } from "node:test";
 import { strictEqual } from "node:assert/strict";
 import { getTestEnv, skipMssql } from "./test_helpers.ts";
-import * as mssql from "../../../mssql/mod.ts";
+import * as mssql from "../../../ts-mssql/mod.ts";
 
 describe("transactions", () => {
   test("transaction commit", { skip: skipMssql }, async () => {

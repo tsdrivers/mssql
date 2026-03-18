@@ -5,7 +5,7 @@
 
 import { assertEquals } from "jsr:@std/assert";
 import { getTestEnv } from "./test_helpers.ts";
-import { parseConnection } from "../../../mssql/core/config.ts";
+import { parseConnection } from "../../../ts-mssql/core/config.ts";
 
 Deno.test("test environment - detects OS correctly", () => {
   const env = getTestEnv();

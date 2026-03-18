@@ -1,11 +1,11 @@
 {
   "nodeModulesDir": "auto",
   "workspace": [
-    "projects/mssql"
+    "projects/ts-mssql"
   ],
   "tasks": {
     "test": "deno test --allow-env projects/",
-    "test:core": "deno test --allow-env projects/mssql/core/",
+    "test:core": "deno test --allow-env projects/ts-mssql/core/",
     "test:integration": "MSSQL_TEST_ENABLED=1 deno test --allow-env --allow-net --allow-ffi --allow-read projects/test/integration/deno/",
     "docs:api": "deno run -A npm:typedoc",
     "docs:dev": "deno task docs:api && deno run -A npm:vitepress dev docs",

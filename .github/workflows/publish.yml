@@ -50,7 +50,7 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: projects/rust -> target
+          workspaces: projects/rust-odbc-mssql -> target
 
       - name: Install cross-compilation tools
         if: matrix.cross
@@ -59,7 +59,7 @@ jobs:
           sudo apt-get install -y gcc-aarch64-linux-gnu
 
       - name: Build release
-        working-directory: projects/rust
+        working-directory: projects/rust-odbc-mssql
         env:
           CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: aarch64-linux-gnu-gcc
         run: cargo build --release --target ${{ matrix.target }}
@@ -67,7 +67,7 @@ jobs:
       - name: Rename artifact
         shell: bash
         run: |
-          cp projects/rust/target/${{ matrix.target }}/release/${{ matrix.lib }} ${{ matrix.artifact }}
+          cp projects/rust-odbc-mssql/target/${{ matrix.target }}/release/${{ matrix.lib }} ${{ matrix.artifact }}
 
       - name: Upload artifact to release
         env:
@@ -93,7 +93,7 @@ jobs:
 
       - name: Publish @tsdrivers/mssql
         run: deno publish --allow-dirty
-        working-directory: projects/mssql
+        working-directory: projects/ts-mssql
 
   publish-npm:
     name: Publish to npm
@@ -108,7 +108,7 @@ jobs:
           registry-url: "https://registry.npmjs.org"
 
       - name: Publish @tsdrivers/mssql
-        working-directory: projects/mssql
+        working-directory: projects/ts-mssql
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: npm publish --access public

@@ -27,17 +27,17 @@ jobs:
         run: deno lint
 
       - name: Type check
-        run: deno check projects/mssql/mod.ts
+        run: deno check projects/ts-mssql/mod.ts
 
       - name: Unit tests
-        run: deno test --allow-env projects/mssql/
+        run: deno test --allow-env projects/ts-mssql/
 
   rust:
     name: Rust (check, clippy, fmt)
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: projects/rust
+        working-directory: projects/rust-odbc-mssql
     steps:
       - uses: actions/checkout@v4
 
@@ -47,7 +47,7 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: projects/rust -> target
+          workspaces: projects/rust-odbc-mssql -> target
 
       - name: Check
         run: cargo check
@@ -89,15 +89,15 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: projects/rust -> target
+          workspaces: projects/rust-odbc-mssql -> target
 
       - name: Build native library
         run: cargo build --release
-        working-directory: projects/rust
+        working-directory: projects/rust-odbc-mssql
 
       - name: Copy library to project root
         run: |
-          cp projects/rust/target/release/libmssqlts.so ./mssqlts-linux-x86_64.so
+          cp projects/rust-odbc-mssql/target/release/libmssqlts.so ./mssqlts-linux-x86_64.so
 
       - name: Run integration tests
         env:

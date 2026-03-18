@@ -35,9 +35,9 @@ $ErrorActionPreference = 'Stop'
 
 $scriptDir   = $PSScriptRoot
 $projectRoot = Split-Path $scriptDir -Parent
-$rustDir     = Join-Path $projectRoot "projects\rust"
+$rustDir     = Join-Path $projectRoot "projects\rust-odbc-mssql"
 $binDir      = Join-Path $projectRoot ".bin"
-$mssqlDir    = Join-Path $projectRoot "projects\mssql"
+$mssqlDir    = Join-Path $projectRoot "projects\ts-mssql"
 $denoTestDir = Join-Path $projectRoot "projects\test\integration\deno"
 $nodeTestDir = Join-Path $projectRoot "projects\test\integration\node"
 $bunTestDir  = Join-Path $projectRoot "projects\test\integration\bun"

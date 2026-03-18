@@ -71,16 +71,16 @@ A `.env` file at project root (gitignored) is sourced by all `run/` scripts if p
 ```
 Rust cdylib (odbc-api + Microsoft ODBC Driver 18)
   ↕ C ABI: u64 handle IDs, JSON strings, null-terminated C strings
-projects/mssql/ffi/{deno,node,bun}.ts  →  RuntimeFFI interface
+projects/ts-mssql/ffi/{deno,node,bun}.ts  →  RuntimeFFI interface
   ↕
-projects/mssql/core/*.ts  →  Public API classes (MssqlPool, MssqlConnection, etc.)
+projects/ts-mssql/core/*.ts  →  Public API classes (MssqlPool, MssqlConnection, etc.)
   ↕
-projects/mssql/mod.ts  →  Entry point (runtime detection, lazy FFI init)
+projects/ts-mssql/mod.ts  →  Entry point (runtime detection, lazy FFI init)
 ```
 
 ### Key files
 
-**Rust (`projects/rust/src/`)**
+**Rust (`projects/rust-odbc-mssql/src/`)**
 | File | Purpose |
 |---|---|
 | `lib.rs` | FFI entry points (`#[no_mangle] pub extern "C" fn`) |
@@ -95,7 +95,7 @@ projects/mssql/mod.ts  →  Entry point (runtime detection, lazy FFI init)
 | `error.rs` | Error types |
 | `filestream.rs` | Windows FILESTREAM I/O |
 
-**TypeScript (`projects/mssql/`)**
+**TypeScript (`projects/ts-mssql/`)**
 | File | Purpose |
 |---|---|
 | `mod.ts` | Public entry: `createPool()`, `connect()`, runtime detection |
@@ -117,7 +117,7 @@ projects/mssql/mod.ts  →  Entry point (runtime detection, lazy FFI init)
 **Tests**
 | Location | What |
 |---|---|
-| `projects/mssql/core/*_test.ts` | Unit tests (172 tests, no DB needed) |
+| `projects/ts-mssql/core/*_test.ts` | Unit tests (172 tests, no DB needed) |
 | `projects/test/integration/{deno,node,bun}/` | Integration tests (29 tests per runtime) |
 
 Integration tests are split into 6 files per runtime:
@@ -165,11 +165,11 @@ must complete synchronously before the calling code continues.
 
 ### Adding new FFI symbols — 5 files to update
 
-1. `projects/rust/src/lib.rs` — `#[no_mangle] pub extern "C" fn` implementation
-2. `projects/mssql/ffi/deno.ts` — Deno `dlopen` symbol definition
-3. `projects/mssql/ffi/node.ts` — koffi function binding
-4. `projects/mssql/ffi/bun.ts` — bun:ffi symbol definition
-5. `projects/mssql/core/runtime.ts` — `RuntimeFFI` interface method
+1. `projects/rust-odbc-mssql/src/lib.rs` — `#[no_mangle] pub extern "C" fn` implementation
+2. `projects/ts-mssql/ffi/deno.ts` — Deno `dlopen` symbol definition
+3. `projects/ts-mssql/ffi/node.ts` — koffi function binding
+4. `projects/ts-mssql/ffi/bun.ts` — bun:ffi symbol definition
+5. `projects/ts-mssql/core/runtime.ts` — `RuntimeFFI` interface method
 
 ### Handle lifecycle
 

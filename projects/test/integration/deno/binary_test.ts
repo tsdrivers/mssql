@@ -7,7 +7,7 @@
 
 import { assertEquals } from "jsr:@std/assert";
 import { getTestEnv, skipFilestream, skipMssql } from "./test_helpers.ts";
-import * as mssql from "../../../mssql/mod.ts";
+import * as mssql from "../../../ts-mssql/mod.ts";
 import { createReadStream, createWriteStream } from "node:fs";
 import { pipeline } from "node:stream/promises";
 
@@ -314,6 +314,111 @@ Deno.test({
         offset += c.length;
       }
       assertEquals(new TextDecoder().decode(result), TEST_CONTENT);
+    }
+  },
+});
+
+Deno.test({
+  name: "binary - blob stream pipeline via node:stream",
+  ignore: skipMssql,
+  async fn() {
+    const env = getTestEnv();
+    await using cn = await mssql.connect(env.connectionString);
+
+    const tmpInput = await Deno.makeTempFile({ suffix: ".bin" });
+    const tmpOutput = await Deno.makeTempFile({ suffix: ".bin" });
+
+    try {
+      await Deno.writeFile(tmpInput, TEST_BYTES);
+
+      await cn.execute(`CREATE TABLE #blob_pipeline (
+        id INT IDENTITY PRIMARY KEY, data VARBINARY(MAX)
+      )`);
+      await cn.execute("INSERT INTO #blob_pipeline (data) VALUES (0x)");
+
+      // Write: pipeline file -> blob
+      {
+        await using tx = await cn.beginTransaction();
+        const source = createReadStream(tmpInput);
+        const writable = cn.blob.filestream.write(tx, {
+          table: "#blob_pipeline", column: "data",
+          where: "id = 1", chunkSize: 64,
+        });
+        await pipeline(source, writable);
+        await tx.commit();
+      }
+
+      // Read: pipeline blob -> file
+      {
+        await using tx = await cn.beginTransaction();
+        const readable = cn.blob.filestream.read(tx, {
+          table: "#blob_pipeline", column: "data",
+          where: "id = 1", chunkSize: 64,
+        });
+        const dest = createWriteStream(tmpOutput);
+        await pipeline(readable, dest);
+        await tx.commit();
+      }
+
+      // Compare
+      const output = await Deno.readFile(tmpOutput);
+      assertEquals(new TextDecoder().decode(output), TEST_CONTENT);
+    } finally {
+      await Deno.remove(tmpInput).catch(() => {});
+      await Deno.remove(tmpOutput).catch(() => {});
+    }
+  },
+});
+
+Deno.test({
+  name: "binary - blob stream pipeline via web streams (pipeTo)",
+  ignore: skipMssql,
+  async fn() {
+    const env = getTestEnv();
+    await using cn = await mssql.connect(env.connectionString);
+
+    const tmpInput = await Deno.makeTempFile({ suffix: ".bin" });
+    const tmpOutput = await Deno.makeTempFile({ suffix: ".bin" });
+
+    try {
+      await Deno.writeFile(tmpInput, TEST_BYTES);
+
+      await cn.execute(`CREATE TABLE #blob_webpipe (
+        id INT IDENTITY PRIMARY KEY, data VARBINARY(MAX)
+      )`);
+      await cn.execute("INSERT INTO #blob_webpipe (data) VALUES (0x)");
+
+      // Write: Deno file -> blob WritableStream via pipeTo
+      {
+        await using tx = await cn.beginTransaction();
+        const inFile = await Deno.open(tmpInput, { read: true });
+        const writable = cn.blob.webstream.write(tx, {
+          table: "#blob_webpipe", column: "data", where: "id = 1",
+        });
+        await inFile.readable.pipeTo(writable);
+        await tx.commit();
+      }
+
+      // Read: blob ReadableStream -> Deno file via pipeTo
+      {
+        await using tx = await cn.beginTransaction();
+        const rs = cn.blob.webstream.read(tx, {
+          table: "#blob_webpipe", column: "data", where: "id = 1",
+        });
+        const outFile = await Deno.open(tmpOutput, {
+          write: true,
+          create: true,
+        });
+        await rs.pipeTo(outFile.writable);
+        await tx.commit();
+      }
+
+      // Compare
+      const output = await Deno.readFile(tmpOutput);
+      assertEquals(new TextDecoder().decode(output), TEST_CONTENT);
+    } finally {
+      await Deno.remove(tmpInput).catch(() => {});
+      await Deno.remove(tmpOutput).catch(() => {});
     }
   },
 });

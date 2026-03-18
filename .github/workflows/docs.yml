@@ -5,7 +5,7 @@ on:
     branches: [main]
     paths:
       - "docs/**"
-      - "projects/mssql/core/**"
+      - "projects/ts-mssql/core/**"
       - "typedoc.json"
       - "tsconfig.docs.json"
       - ".github/workflows/docs.yml"

@@ -9,6 +9,6 @@
     "skipLibCheck": true,
     "lib": ["ESNext", "DOM", "DOM.Iterable"]
   },
-  "include": ["projects/mssql/core/**/*.ts"],
+  "include": ["projects/ts-mssql/core/**/*.ts"],
   "exclude": ["**/*_test.ts", "**/*.test.ts"]
 }

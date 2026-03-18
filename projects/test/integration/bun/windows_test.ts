@@ -6,7 +6,7 @@
 
 import { describe, expect, test } from "bun:test";
 import { getTestEnv, skipFilestream, skipMssql, skipWindows } from "./test_helpers.ts";
-import * as mssql from "../../../mssql/mod.ts";
+import * as mssql from "../../../ts-mssql/mod.ts";
 
 describe("windows-only", () => {
   test.skipIf(skipWindows || skipMssql)("Windows auth (SSPI)", async () => {

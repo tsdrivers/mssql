@@ -6,7 +6,7 @@
 
 import { assertEquals, assertExists } from "jsr:@std/assert";
 import { getTestEnv, skipMssql } from "./test_helpers.ts";
-import * as mssql from "../../../mssql/mod.ts";
+import * as mssql from "../../../ts-mssql/mod.ts";
 
 // ── Existing pool tests ──────────────────────────────────────
 

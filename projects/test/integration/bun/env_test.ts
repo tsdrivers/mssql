@@ -5,7 +5,7 @@
 
 import { describe, expect, test } from "bun:test";
 import { getTestEnv } from "./test_helpers.ts";
-import { parseConnection } from "../../../mssql/core/config.ts";
+import { parseConnection } from "../../../ts-mssql/core/config.ts";
 
 describe("environment detection", () => {
   test("detects OS correctly", () => {

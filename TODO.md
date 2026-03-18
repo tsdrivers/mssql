@@ -154,14 +154,14 @@ Replaced the Tiberius + bb8 Rust FFI driver with `mssql-client` v0.6 +
 two new exports: `diagnosticInfo()` and `setDebug()` (from Phase 13.1/13.2).
 
 - [x] 12.0: Repo restructure (`packages/` → `projects/`, `rust/` →
-      `projects/rust/`)
+      `projects/rust-odbc-mssql/`)
 - [x] 12.1: Remove cursor and batch streaming options
-- [x] 12.2: New Rust driver (`projects/rust/`) with all 26 FFI symbols
+- [x] 12.2: New Rust driver (`projects/rust-odbc-mssql/`) with all 26 FFI symbols
   - mssql-client + mssql-driver-pool + tokio (replaces tiberius + bb8)
   - Diagnostics (`mssql_diagnostic_info`) and debug (`mssql_set_debug`) built in
   - TS-side: RuntimeFFI interface, FFI adapters, types, and public API updated
 - [x] 12.3: Integration testing — all three runtimes pass (Deno, Node, Bun)
-- [x] 12.4: Cleanup — old driver deleted, renamed to `projects/rust/`, docs
+- [x] 12.4: Cleanup — old driver deleted, renamed to `projects/rust-odbc-mssql/`, docs
       updated
 
 ## Phase 13 — Connection Pool Enhancements & Validation

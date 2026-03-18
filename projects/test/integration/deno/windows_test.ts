@@ -11,7 +11,7 @@ import {
   skipMssql,
   skipWindows,
 } from "./test_helpers.ts";
-import * as mssql from "../../../mssql/mod.ts";
+import * as mssql from "../../../ts-mssql/mod.ts";
 
 Deno.test({
   name: "windows - auth (SSPI)",

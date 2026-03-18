@@ -1,6 +1,6 @@
 {
   "name": "@tsdrivers/mssql",
-  "entryPoints": ["projects/mssql/core/mod.ts"],
+  "entryPoints": ["projects/ts-mssql/core/mod.ts"],
   "tsconfig": "tsconfig.docs.json",
   "plugin": ["typedoc-plugin-markdown", "typedoc-vitepress-theme"],
   "out": "docs/api",

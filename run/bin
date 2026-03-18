@@ -3,7 +3,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-RUST_DIR="$PROJECT_ROOT/projects/rust"
+RUST_DIR="$PROJECT_ROOT/projects/rust-odbc-mssql"
 BIN_DIR="$PROJECT_ROOT/.bin"
 
 # Detect OS

@@ -89,7 +89,7 @@ The library resolver searches these locations in order:
 ### Build from Source
 
 ```sh
-cd projects/rust
+cd projects/rust-odbc-mssql
 cargo build --release
-# Copy projects/rust/target/release/libmssqlts.so to your project
+# Copy projects/rust-odbc-mssql/target/release/libmssqlts.so to your project
 ```

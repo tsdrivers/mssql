@@ -6,7 +6,7 @@
 import { describe, test } from "node:test";
 import { ok, strictEqual } from "node:assert/strict";
 import { getTestEnv, skipMssql } from "./test_helpers.ts";
-import * as mssql from "../../../mssql/mod.ts";
+import * as mssql from "../../../ts-mssql/mod.ts";
 
 describe("stored procedures", () => {
   test("exec with output params and multiple result sets", { skip: skipMssql }, async () => {

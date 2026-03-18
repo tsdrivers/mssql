@@ -13,7 +13,7 @@ import { pipeline } from "node:stream/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { getTestEnv, skipFilestream, skipMssql } from "./test_helpers.ts";
-import * as mssql from "../../../mssql/mod.ts";
+import * as mssql from "../../../ts-mssql/mod.ts";
 
 const TEST_CONTENT =
   "Hello, world! \u{1F30D}\u{1F389} H\u00E9llo \u00E9mojis: \u{1F680}\u{1F4BB}\u{1F3B5} \u65E5\u672C\u8A9E\u30C6\u30B9\u30C8 caf\u00E9 na\u00EFve r\u00E9sum\u00E9";
@@ -258,6 +258,112 @@ describe("blob streaming", () => {
       let offset = 0;
       for (const c of chunks) { result.set(c, offset); offset += c.length; }
       strictEqual(new TextDecoder().decode(result), TEST_CONTENT);
+    }
+  });
+
+  test("pipeline via node:stream", { skip: skipMssql }, async () => {
+    const env = getTestEnv();
+    await using cn = await mssql.connect(env.connectionString);
+
+    const tmpDir = await mkdtemp(join(tmpdir(), "mssql-blob-"));
+    const tmpInput = join(tmpDir, "input.bin");
+    const tmpOutput = join(tmpDir, "output.bin");
+
+    try {
+      await writeFile(tmpInput, TEST_BYTES);
+
+      await cn.execute(`CREATE TABLE #blob_pipeline (
+        id INT IDENTITY PRIMARY KEY, data VARBINARY(MAX)
+      )`);
+      await cn.execute("INSERT INTO #blob_pipeline (data) VALUES (0x)");
+
+      // Write: pipeline file -> blob
+      {
+        await using tx = await cn.beginTransaction();
+        const source = createReadStream(tmpInput);
+        const writable = cn.blob.filestream.write(tx, {
+          table: "#blob_pipeline", column: "data",
+          where: "id = 1", chunkSize: 64,
+        });
+        await pipeline(source, writable);
+        await tx.commit();
+      }
+
+      // Read: pipeline blob -> file
+      {
+        await using tx = await cn.beginTransaction();
+        const readable = cn.blob.filestream.read(tx, {
+          table: "#blob_pipeline", column: "data",
+          where: "id = 1", chunkSize: 64,
+        });
+        const dest = createWriteStream(tmpOutput);
+        await pipeline(readable, dest);
+        await tx.commit();
+      }
+
+      // Compare
+      const output = await readFile(tmpOutput);
+      strictEqual(new TextDecoder().decode(output), TEST_CONTENT);
+    } finally {
+      await rm(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  test("pipeline via web streams", { skip: skipMssql }, async () => {
+    const env = getTestEnv();
+    await using cn = await mssql.connect(env.connectionString);
+
+    const tmpDir = await mkdtemp(join(tmpdir(), "mssql-blob-"));
+    const tmpInput = join(tmpDir, "input.bin");
+    const tmpOutput = join(tmpDir, "output.bin");
+
+    try {
+      await writeFile(tmpInput, TEST_BYTES);
+
+      await cn.execute(`CREATE TABLE #blob_webpipe (
+        id INT IDENTITY PRIMARY KEY, data VARBINARY(MAX)
+      )`);
+      await cn.execute("INSERT INTO #blob_webpipe (data) VALUES (0x)");
+
+      // Write: ReadableStream from file -> blob WritableStream
+      {
+        await using tx = await cn.beginTransaction();
+        const fileData = await readFile(tmpInput);
+        const source = new ReadableStream({
+          start(controller) {
+            controller.enqueue(new Uint8Array(fileData));
+            controller.close();
+          },
+        });
+        const writable = cn.blob.webstream.write(tx, {
+          table: "#blob_webpipe", column: "data", where: "id = 1",
+        });
+        await source.pipeTo(writable);
+        await tx.commit();
+      }
+
+      // Read: blob ReadableStream -> file
+      {
+        await using tx = await cn.beginTransaction();
+        const rs = cn.blob.webstream.read(tx, {
+          table: "#blob_webpipe", column: "data", where: "id = 1",
+        });
+        const chunks: Uint8Array[] = [];
+        for await (const chunk of rs) { chunks.push(chunk); }
+        await tx.commit();
+
+        const total = chunks.reduce((n, c) => n + c.length, 0);
+        const result = new Uint8Array(total);
+        let offset = 0;
+        for (const c of chunks) { result.set(c, offset); offset += c.length; }
+        await writeFile(tmpOutput, result);
+      }
+
+      // Compare
+      const output = await readFile(tmpOutput);
+      strictEqual(new TextDecoder().decode(output), TEST_CONTENT);
+    } finally {
+      await rm(tmpDir, { recursive: true, force: true });
     }
   });
 });

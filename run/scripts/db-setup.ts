@@ -9,7 +9,7 @@
  * All diagnostics go to stderr.
  */
 
-import { connect } from "../../projects/mssql/mod.ts";
+import { connect } from "../../projects/ts-mssql/mod.ts";
 
 const SA_CONNECTION =
   Deno.env.get("MSSQL_SA_CONNECTION") ??

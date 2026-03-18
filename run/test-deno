@@ -54,7 +54,7 @@ export MSSQL_TEST_CONNECTION
 
 echo ""
 echo "=== Running core tests ==="
-deno test --allow-env "$PROJECT_ROOT/projects/mssql/"
+deno test --allow-env "$PROJECT_ROOT/projects/ts-mssql/"
 
 echo ""
 echo "=== Running Deno integration tests ==="

@@ -5,7 +5,7 @@
 
 import { describe, expect, test } from "bun:test";
 import { getTestEnv, skipMssql } from "./test_helpers.ts";
-import * as mssql from "../../../mssql/mod.ts";
+import * as mssql from "../../../ts-mssql/mod.ts";
 
 describe("queries", () => {
   test.skipIf(skipMssql)("connect to MSSQL", async () => {

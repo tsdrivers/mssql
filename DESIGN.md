@@ -252,7 +252,7 @@ matching the current execution environment.
 ## Documentation
 
 - VitePress site at tsdrivers.github.io/mssql/
-- TypeDoc generates API reference from JSDoc in projects/mssql/core/
+- TypeDoc generates API reference from JSDoc in projects/ts-mssql/core/
 - Guide pages in docs/src/guide/
 - Runtime-specific tabs in code examples
 - README per package generated via scripts/build-readmes.ts
