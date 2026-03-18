@@ -36,7 +36,7 @@ if (await pool.filestreamAvailable()) {
 
 ## Two FILESTREAM APIs
 
-`@tracker1/mssql` provides two ways to work with FILESTREAM blobs:
+`@tsdrivers/mssql` provides two ways to work with FILESTREAM blobs:
 
 | Method | Returns | Best for |
 |---|---|---|
@@ -199,7 +199,7 @@ cleanest approach across all runtimes:
 ```ts
 import { createGunzip } from "node:zlib";
 import { createInterface } from "node:readline";
-import * as mssql from "@tracker1/mssql";
+import * as mssql from "@tsdrivers/mssql";
 
 async function* readNdjsonGz<T>(
   cn: mssql.MssqlConnection,
@@ -242,7 +242,7 @@ Uses `DecompressionStream` and `TextDecoderStream` — both are standard Web
 APIs available natively in Deno, Node.js 18+, and Bun:
 
 ```ts
-import * as mssql from "@tracker1/mssql";
+import * as mssql from "@tsdrivers/mssql";
 
 async function* readNdjsonGzWeb<T>(
   cn: mssql.MssqlConnection,

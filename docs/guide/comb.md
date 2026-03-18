@@ -5,7 +5,7 @@ COMB (Combined UUID-Timestamp) is a UUID v4 variant where the last 6 bytes encod
 ## Usage
 
 ```ts
-import { newCOMB } from "@tracker1/mssql";
+import { newCOMB } from "@tsdrivers/mssql";
 
 const id = newCOMB();
 // e.g. "a3f1b2c4-d5e6-4f7a-8b9c-019437a2b1c0"

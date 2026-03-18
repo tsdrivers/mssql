@@ -30,7 +30,7 @@ async function getKoffi(): Promise<any> {
         _koffi = mod.default ?? mod;
       } catch {
         throw new Error(
-          "@tracker1/mssql: could not load or install koffi (required for Node.js FFI).\n" +
+          "@tsdrivers/mssql: could not load or install koffi (required for Node.js FFI).\n" +
             "Install it manually:\n  npm install koffi",
         );
       }

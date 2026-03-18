@@ -1,4 +1,4 @@
-# CLAUDE.md — @tracker1/mssql
+# CLAUDE.md — @tsdrivers/mssql
 
 SQL Server driver for Deno, Node.js 22+, and Bun via Rust FFI.
 

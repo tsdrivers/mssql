@@ -112,7 +112,7 @@ if (-not $SkipBuild) {
 # Uses Integrated Security so no SA password is needed.
 # The db-setup.ts script detects Windows and configures FILESTREAM + filegroup.
 
-$saConn = "Server=localhost\SQLEXPRESS;Database=master;Integrated Security=true;TrustServerCertificate=true;"
+$saConn = "Server=localhost;Database=master;Integrated Security=true;TrustServerCertificate=true;"
 $env:MSSQL_SA_CONNECTION = $saConn
 
 $testConn = Invoke-CmdCapture "Setting up test database" {

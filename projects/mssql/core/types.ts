@@ -1,5 +1,5 @@
 /**
- * Shared type definitions for @tracker1/mssql.
+ * Shared type definitions for @tsdrivers/mssql.
  * @module
  */
 

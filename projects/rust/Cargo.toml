@@ -9,13 +9,12 @@ name = "mssqlts"
 crate-type = ["cdylib"]
 
 [dependencies]
-mssql-client = { git = "https://github.com/tracker1/rust-mssql-driver", branch = "mssql-client-sspi-auth-implementation", features = [
+mssql-client = { git = "https://github.com/praxiomlabs/rust-mssql-driver", branch = "dev", features = [
     "chrono",
     "uuid",
-    "sspi-auth",
     "zeroize",
 ] }
-mssql-driver-pool = { git = "https://github.com/tracker1/rust-mssql-driver", branch = "mssql-client-sspi-auth-implementation" }
+mssql-driver-pool = { git = "https://github.com/praxiomlabs/rust-mssql-driver", branch = "dev" }
 tokio = { version = "1", features = ["rt-multi-thread", "net", "time", "sync"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"

@@ -12,7 +12,7 @@ const DEFAULTS: Omit<NormalizedConfig, "server" | "auth"> = {
   trust_server_certificate: true,
   connect_timeout_ms: 15000,
   request_timeout_ms: 15000,
-  app_name: "@tracker1/mssql",
+  app_name: "@tsdrivers/mssql",
   instance_name: null,
   packet_size: 4096,
   pool: null,

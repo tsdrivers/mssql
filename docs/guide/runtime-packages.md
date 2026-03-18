@@ -1,6 +1,6 @@
 # Runtime Support
 
-The `@tracker1/mssql` package includes FFI adapters for all three supported
+The `@tsdrivers/mssql` package includes FFI adapters for all three supported
 runtimes. The correct adapter is selected automatically — no configuration
 needed.
 
@@ -35,7 +35,7 @@ Uses the built-in `bun:ffi` module. No additional dependencies needed.
 The package exports `getFfi()` and `loadLibrary()` for advanced use cases:
 
 ```ts
-import { getFfi, loadLibrary } from "@tracker1/mssql";
+import { getFfi, loadLibrary } from "@tsdrivers/mssql";
 
 // Get the FFI singleton (resolved lazily, or eagerly on Deno)
 const ffi = await getFfi();

@@ -2,7 +2,7 @@
  * Standalone install script for pre-downloading the native library.
  *
  * ```sh
- * deno run -A jsr:@tracker1/mssql/install
+ * deno run -A jsr:@tsdrivers/mssql/install
  * ```
  *
  * @module
@@ -80,7 +80,7 @@ async function install(opts: InstallOptions): Promise<void> {
   const home = Deno.env.get("HOME") ?? Deno.env.get("USERPROFILE") ?? "";
   const sep = Deno.build.os === "windows" ? "\\" : "/";
   const cacheDir =
-    `${home}${sep}.cache${sep}tracker1-mssql${sep}${opts.version}`;
+    `${home}${sep}.cache${sep}@tsdrivers${sep}mssql${sep}${opts.version}`;
 
   // Ensure cache directory exists
   await Deno.mkdir(cacheDir, { recursive: true });
@@ -119,14 +119,12 @@ async function install(opts: InstallOptions): Promise<void> {
 // ── Main ──────────────────────────────────────────────────────
 
 if (import.meta.main) {
-  console.log("[@tracker1/mssql] Installing native library...");
+  console.log("[@tsdrivers/mssql] Installing native library...");
   const opts = parseArgs(Deno.args);
   console.log(`  Version: ${opts.version}`);
   console.log(
-    `  Platforms: ${
-      opts.platforms.map((p) => `${p.os}-${p.arch}`).join(", ")
-    }`,
+    `  Platforms: ${opts.platforms.map((p) => `${p.os}-${p.arch}`).join(", ")}`,
   );
   await install(opts);
-  console.log("[@tracker1/mssql] Done.");
+  console.log("[@tsdrivers/mssql] Done.");
 }

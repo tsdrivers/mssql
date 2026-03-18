@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cargo build:*)",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); pkgs=[p for p in d[''''packages''''] if p[''''name'''']==''''mssql-client'''']; print\\(json.dumps\\(pkgs[0][''''features''''], indent=2\\)\\) if pkgs else print\\(''''not found''''\\)\")",
+      "Read(//c/Users/Administrator/src/github.com/tsdrivers/mssql/$USERPROFILE/.cargo/git/checkouts/rust-mssql-driver-29d52241c7db1094/ef7c1fd/**)",
+      "Read(//c/Users/Administrator/.cargo/git/checkouts/rust-mssql-driver-29d52241c7db1094/ef7c1fd/crates/**)"
+    ]
+  }
+}

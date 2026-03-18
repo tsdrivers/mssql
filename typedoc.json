@@ -1,5 +1,5 @@
 {
-  "name": "mssql-ts-ffi",
+  "name": "@tsdrivers/mssql",
   "entryPoints": ["projects/mssql/core/mod.ts"],
   "tsconfig": "tsconfig.docs.json",
   "plugin": ["typedoc-plugin-markdown", "typedoc-vitepress-theme"],

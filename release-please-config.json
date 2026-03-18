@@ -6,7 +6,7 @@
   "include-v-in-tag": true,
   "packages": {
     ".": {
-      "package-name": "mssql-ts-ffi",
+      "package-name": "@tsdrivers/mssql",
       "changelog-path": "CHANGELOG.md"
     }
   }

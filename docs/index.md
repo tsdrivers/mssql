@@ -1,7 +1,7 @@
 ---
 layout: home
 hero:
-  name: mssql-ts-ffi
+  name: @tsdrivers/mssql
   tagline: SQL Server driver for Deno, Node.js 22+, and Bun via Rust FFI
   actions:
     - theme: brand
@@ -9,7 +9,7 @@ hero:
       link: /guide/getting-started
     - theme: alt
       text: View on GitHub
-      link: https://github.com/tracker1/mssql-ts-ffi
+      link: https://github.com/tsdrivers/mssql
 features:
   - title: Multi-Runtime
     details: Works with Deno, Node.js 22+, and Bun — same API across all runtimes.

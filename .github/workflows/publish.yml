@@ -91,7 +91,7 @@ jobs:
         with:
           deno-version: v2.x
 
-      - name: Publish @tracker1/mssql
+      - name: Publish @tsdrivers/mssql
         run: deno publish --allow-dirty
         working-directory: projects/mssql
 
@@ -107,7 +107,7 @@ jobs:
           node-version: 22
           registry-url: "https://registry.npmjs.org"
 
-      - name: Publish @tracker1/mssql
+      - name: Publish @tsdrivers/mssql
         working-directory: projects/mssql
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

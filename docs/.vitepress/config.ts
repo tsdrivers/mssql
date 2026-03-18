@@ -1,9 +1,9 @@
 import { defineConfig } from "vitepress";
 
 export default defineConfig({
-  title: "mssql-ts-ffi",
+  title: "@tsdrivers/mssql",
   description: "SQL Server driver for Deno, Node.js 22+, and Bun via Rust FFI",
-  base: "/mssql-ts-ffi/",
+  base: "/mssql/",
 
   themeConfig: {
     nav: [
@@ -11,7 +11,7 @@ export default defineConfig({
       { text: "API", link: "/api/" },
       {
         text: "GitHub",
-        link: "https://github.com/tracker1/mssql-ts-ffi",
+        link: "https://github.com/tsdrivers/mssql",
       },
     ],
 
@@ -110,7 +110,7 @@ export default defineConfig({
     },
 
     socialLinks: [
-      { icon: "github", link: "https://github.com/tracker1/mssql-ts-ffi" },
+      { icon: "github", link: "https://github.com/tsdrivers/mssql" },
     ],
   },
 });

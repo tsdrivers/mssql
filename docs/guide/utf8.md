@@ -9,7 +9,7 @@ SQL Server 2019+ supports UTF-8 collations for `VARCHAR` columns, reducing stora
 Generate a column definition with UTF-8 collation:
 
 ```ts
-import { utf8Column } from "@tracker1/mssql";
+import { utf8Column } from "@tsdrivers/mssql";
 
 const col = utf8Column("Name", "varchar(100)");
 // "Name varchar(100) COLLATE Latin1_General_100_CI_AS_SC_UTF8"
@@ -20,7 +20,7 @@ const col = utf8Column("Name", "varchar(100)");
 Generate a check query:
 
 ```ts
-import { supportsUtf8 } from "@tracker1/mssql";
+import { supportsUtf8 } from "@tsdrivers/mssql";
 
 const sql = supportsUtf8();
 // "SELECT CASE WHEN SERVERPROPERTY('ProductMajorVersion') >= 15 THEN 1 ELSE 0 END AS supported"
@@ -31,7 +31,7 @@ const sql = supportsUtf8();
 Generate ALTER DATABASE statement:
 
 ```ts
-import { setDatabaseUtf8 } from "@tracker1/mssql";
+import { setDatabaseUtf8 } from "@tsdrivers/mssql";
 
 const sql = setDatabaseUtf8("MyDatabase");
 // "ALTER DATABASE [MyDatabase] COLLATE Latin1_General_100_CI_AS_SC_UTF8"
@@ -40,7 +40,7 @@ const sql = setDatabaseUtf8("MyDatabase");
 ### Available Collations
 
 ```ts
-import { UTF8_COLLATIONS } from "@tracker1/mssql";
+import { UTF8_COLLATIONS } from "@tsdrivers/mssql";
 
 UTF8_COLLATIONS.CI_AS;    // "Latin1_General_100_CI_AS_SC_UTF8"
 UTF8_COLLATIONS.CS_AS;    // "Latin1_General_100_CS_AS_SC_UTF8"

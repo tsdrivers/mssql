@@ -1,11 +1,11 @@
 # Getting Started
 
-**mssql-ts-ffi** is a SQL Server driver for TypeScript runtimes (Deno, Node.js 22+, Bun) that uses a native Rust library via FFI for high performance.
+**@tsdrivers/mssql** is a SQL Server driver for TypeScript runtimes (Deno, Node.js 22+, Bun) that uses a native Rust library via FFI for high performance.
 
 ## Quick Start
 
 ```ts
-import * as mssql from "@tracker1/mssql";
+import * as mssql from "@tsdrivers/mssql";
 
 await using pool = await mssql.createPool(
   "Server=localhost;Database=mydb;User Id=sa;Password=pass;TrustServerCertificate=true;"
@@ -15,7 +15,7 @@ const users = await pool.query<{ name: string }>("SELECT name FROM Users");
 console.log(users);
 ```
 
-The unified `@tracker1/mssql` package automatically detects your runtime (Deno,
+The unified `@tsdrivers/mssql` package automatically detects your runtime (Deno,
 Node.js, or Bun) and loads the correct FFI adapter. See
 [Runtime-Specific Packages](./runtime-packages) for advanced usage.
 

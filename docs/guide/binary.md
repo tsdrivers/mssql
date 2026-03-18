@@ -110,7 +110,7 @@ runtime-specific code paths in the driver for binary data.
 ## Full Round-Trip Example
 
 ```ts
-import * as mssql from "@tracker1/mssql";
+import * as mssql from "@tsdrivers/mssql";
 
 const TEST = new TextEncoder().encode("Hello, world! 🌍");
 

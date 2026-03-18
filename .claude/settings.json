@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//c/Users/Administrator/src/github.com/tsdrivers/mssql/$USERPROFILE/.cargo/git/checkouts/rust-mssql-driver-29d52241c7db1094/ef7c1fd/crates/mssql-client/**)",
+      "Read(//c/Users/Administrator/src/github.com/tsdrivers/mssql/$USERPROFILE/.cargo/git/checkouts/rust-mssql-driver-29d52241c7db1094/ef7c1fd/crates/mssql-client/src/**)",
+      "Read(//c/Users/Administrator/src/github.com/tsdrivers/mssql/$USERPROFILE/.cargo/git/checkouts/rust-mssql-driver-29d52241c7db1094/ef7c1fd/crates/mssql-auth/src/**)",
+      "Read(//c/Users/Administrator/src/github.com/tsdrivers/mssql/$USERPROFILE/.cargo/git/checkouts/rust-mssql-driver-29d52241c7db1094/ef7c1fd/crates/mssql-auth/**)",
+      "Bash(grep -v \"test\\\\|example\\\\|doc\\\\|//\")",
+      "Read(//c/Users/Administrator/src/github.com/tsdrivers/mssql/$USERPROFILE/.cargo/git/checkouts/rust-mssql-driver-29d52241c7db1094/ef7c1fd/crates/mssql-client/src/client/**)"
+    ]
+  }
+}

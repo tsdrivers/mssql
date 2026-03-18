@@ -245,7 +245,7 @@ mod tests {
             trust_server_certificate: true,
             connect_timeout_ms: 15000,
             request_timeout_ms: 15000,
-            app_name: "@tracker1/mssql".to_string(),
+            app_name: "@tsdrivers/mssql".to_string(),
             instance_name: None,
             packet_size: 4096,
             pool: Some(PoolConfig {

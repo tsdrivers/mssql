@@ -1,8 +1,9 @@
-# mssql-ts-ffi — @tracker1/mssql
+# @tsdrivers/mssql
 
 SQL Server driver for Deno, Node.js 22+, and Bun via Rust FFI.
 
-Full documentation is available at [tracker1.github.io/mssql-ts-ffi](https://tracker1.github.io/mssql-ts-ffi/).
+Full documentation is available at
+[tsdrivers.github.io/mssql](https://tsdrivers.github.io/mssql/).
 
 ## Alpha
 
@@ -11,33 +12,40 @@ Full documentation is available at [tracker1.github.io/mssql-ts-ffi](https://tra
 - This has mostly been developed with Claude Code and Opus 4.6.
 - My main interest was to create a client for use with Deno.
   - Node and Bun are kind of secondary to me and I won't be using this myself.
-- Bug reports are nice, but PRs will probably be more helpful if you are experiencing bugs.
+- Bug reports are nice, but PRs will probably be more helpful if you are
+  experiencing bugs.
 
 ## Features
 
-- Queries with typed results, parameterized queries, and tagged template literals
+- Queries with typed results, parameterized queries, and tagged template
+  literals
 - Connection pooling with automatic acquire/release
 - Transactions with commit/rollback
-- Streaming queries with async iteration, `ReadableStream` support, and convenience methods (map, filter, reduce)
+- Streaming queries with async iteration, `ReadableStream` support, and
+  convenience methods (map, filter, reduce)
 - Bulk insert with positional rows, named objects, or async iterables
-- Async Disposable (`await using`) for connections, pools, transactions, and streams
-- Cascading resource cleanup — disposing a connection auto-cleans child transactions and streams
+- Async Disposable (`await using`) for connections, pools, transactions, and
+  streams
+- Cascading resource cleanup — disposing a connection auto-cleans child
+  transactions and streams
 - COMB UUID generation for SQL Server-friendly sequential GUIDs
 - UTF-8 collation helpers
-- Transparent native binary download (postinstall for Node/Bun, install script for Deno)
-- FILESTREAM support (Windows only, requires [Microsoft OLE DB Driver 19][oledb])
+- Transparent native binary download (postinstall for Node/Bun, install script
+  for Deno)
+- FILESTREAM support (Windows only, requires
+  [Microsoft OLE DB Driver 19][oledb])
 - Zero native dependencies except FILESTREAM on Windows
 
 [oledb]: https://learn.microsoft.com/en-us/sql/connect/oledb/download-oledb-driver-for-sql-server?view=sql-server-ver17
 
 ## Package
 
-| Registry | Package | Description |
-|----------|---------|-------------|
-| [jsr] / [npm] | `@tracker1/mssql` | Unified package — auto-detects runtime |
+| Registry      | Package            | Description                            |
+| ------------- | ------------------ | -------------------------------------- |
+| [jsr] / [npm] | `@tsdrivers/mssql` | Unified package — auto-detects runtime |
 
-[jsr]: https://jsr.io/@tracker1
-[npm]: https://www.npmjs.com/org/tracker1
+[jsr]: https://jsr.io/@tsdrivers
+[npm]: https://www.npmjs.com/org/tsdrivers
 
 A single package supports Deno, Node.js 22+, and Bun. The correct FFI adapter
 (`Deno.dlopen`, `koffi`, or `bun:ffi`) is selected automatically at runtime.
@@ -46,33 +54,33 @@ A single package supports Deno, Node.js 22+, and Bun. The correct FFI adapter
 
 ```sh
 # Deno
-deno add jsr:@tracker1/mssql
+deno add jsr:@tsdrivers/mssql
 
 # Bun
-bun add @tracker1/mssql
+bun add @tsdrivers/mssql
 
 # Node.js
-npm install @tracker1/mssql koffi
+npm install @tsdrivers/mssql koffi
 ```
 
 The postinstall script (Node/Bun) automatically downloads the native library.
 For Deno, use the install script:
 
 ```sh
-deno run -A jsr:@tracker1/mssql/install
+deno run -A jsr:@tsdrivers/mssql/install
 ```
 
-You can also set `TRACKER1_MSSQL_LIB_PATH` to an explicit path, or build from
+You can also set `TSDRIVERS_MSSQL_LIB_PATH` to an explicit path, or build from
 source with `cd rust && cargo build --release`.
 
 ## Quick Start
 
 ```ts
-import * as mssql from "@tracker1/mssql";
+import * as mssql from "@tsdrivers/mssql";
 
 // Create a pool
 await using pool = await mssql.createPool(
-  "Server=localhost;Database=mydb;User Id=sa;Password=pass;TrustServerCertificate=true;"
+  "Server=localhost;Database=mydb;User Id=sa;Password=pass;TrustServerCertificate=true;",
 );
 
 // Query with typed results
@@ -83,7 +91,9 @@ const users = await pool.query<{ name: string; age: number }>(
 
 // Tagged template literal (auto-parameterized)
 const minAge = 18;
-const users2 = await pool.query<{ name: string }>`SELECT name FROM Users WHERE age > ${minAge}`;
+const users2 = await pool.query<
+  { name: string }
+>`SELECT name FROM Users WHERE age > ${minAge}`;
 ```
 
 ## API Overview
@@ -151,14 +161,14 @@ mssql://localhost/mydb?instanceName=SQLEXPRESS
 
 ## Platform Support
 
-| Platform | Architecture | Library |
-|----------|-------------|---------|
-| Linux | x86_64 | `mssqlts-linux-x86_64.so` |
-| Linux | aarch64 | `mssqlts-linux-aarch64.so` |
-| macOS | x86_64 | `mssqlts-macos-x86_64.dylib` |
-| macOS | aarch64 | `mssqlts-macos-aarch64.dylib` |
-| Windows | x86_64 | `mssqlts-windows-x86_64.dll` |
-| Windows | aarch64 | `mssqlts-windows-aarch64.dll` |
+| Platform | Architecture | Library                       |
+| -------- | ------------ | ----------------------------- |
+| Linux    | x86_64       | `mssqlts-linux-x86_64.so`     |
+| Linux    | aarch64      | `mssqlts-linux-aarch64.so`    |
+| macOS    | x86_64       | `mssqlts-macos-x86_64.dylib`  |
+| macOS    | aarch64      | `mssqlts-macos-aarch64.dylib` |
+| Windows  | x86_64       | `mssqlts-windows-x86_64.dll`  |
+| Windows  | aarch64      | `mssqlts-windows-aarch64.dll` |
 
 ## Architecture
 
@@ -169,9 +179,10 @@ Deno.dlopen / bun:ffi / koffi -> RuntimeFFI interface -> Core TS classes
 ```
 
 The Rust layer handles all SQL Server communication using
-[mssql-client](https://crates.io/crates/mssql-client) (pure Rust TDS implementation
-with rustls, supporting TDS 7.3–8.0), [tokio](https://tokio.rs) for async I/O,
-and [mssql-driver-pool](https://crates.io/crates/mssql-driver-pool) for connection
+[mssql-client](https://crates.io/crates/mssql-client) (pure Rust TDS
+implementation with rustls, supporting TDS 7.3–8.0), [tokio](https://tokio.rs)
+for async I/O, and
+[mssql-driver-pool](https://crates.io/crates/mssql-driver-pool) for connection
 pooling. It exposes a C ABI with opaque `u64` handle IDs and JSON serialization
 across the FFI boundary.
 
@@ -179,7 +190,7 @@ The core TypeScript layer is runtime-agnostic — connection/pool classes, query
 serialization, config parsing, and binary resolution are shared by all three
 runtime adapters, which are thin FFI wrappers.
 
-The `@tracker1/mssql` package embeds FFI adapters for all three runtimes and
+The `@tsdrivers/mssql` package embeds FFI adapters for all three runtimes and
 auto-detects which to use. On Deno, FFI initialization begins eagerly at module
 load time. On Node.js (via `koffi`) and Bun (via `bun:ffi`), it resolves lazily
 on first `createPool()` or `connect()` call.

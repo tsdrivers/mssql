@@ -2,7 +2,7 @@
  * Unified SQL Server driver — auto-detects Deno, Node.js, or Bun at runtime.
  *
  * ```ts
- * import * as mssql from "@tracker1/mssql";
+ * import * as mssql from "@tsdrivers/mssql";
  *
  * const pool = await mssql.createPool("Server=localhost;Database=mydb;User Id=sa;Password=pass;");
  * const rows = await pool.query<{ name: string }>("SELECT name FROM Users");

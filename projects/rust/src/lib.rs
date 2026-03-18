@@ -81,7 +81,7 @@ pub extern "C" fn mssql_pool_create(config_json: *const c_char) -> u64 {
             id
         }
         Err(e) => {
-            eprintln!("[@tracker1/mssql] Pool creation failed: {e}");
+            eprintln!("[@tsdrivers/mssql] Pool creation failed: {e}");
             0
         }
     }
@@ -160,7 +160,7 @@ pub extern "C" fn mssql_connect(config_json: *const c_char) -> u64 {
             id
         }
         Err(e) => {
-            eprintln!("[@tracker1/mssql] Connection failed: {e}");
+            eprintln!("[@tsdrivers/mssql] Connection failed: {e}");
             0
         }
     }
@@ -532,7 +532,7 @@ pub extern "C" fn mssql_filestream_open(req_json: *const c_char) -> u64 {
     match result {
         Ok(id) => id,
         Err(e) => {
-            eprintln!("[@tracker1/mssql] FILESTREAM open failed: {e}");
+            eprintln!("[@tsdrivers/mssql] FILESTREAM open failed: {e}");
             0
         }
     }

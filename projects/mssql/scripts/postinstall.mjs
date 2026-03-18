@@ -1,17 +1,17 @@
 #!/usr/bin/env node
 /**
- * Postinstall script for @tracker1/mssql.
+ * Postinstall script for @tsdrivers/mssql.
  *
  * Downloads the native library for the current platform into
- * ~/.cache/tracker1-mssql/{version}/ so it's ready at runtime.
+ * ~/.cache/@tsdrivers/mssql/{version}/ so it's ready at runtime.
  *
  * If the download fails (e.g. no network, firewall), it logs a
  * warning but does NOT fail the install. The library path can be
- * set manually via the TRACKER1_MSSQL_LIB_PATH environment variable.
+ * set manually via the TSDRIVERS_MSSQL_LIB_PATH environment variable.
  */
 
-import { mkdir, writeFile, stat, chmod } from "node:fs/promises";
-import { platform, arch, homedir } from "node:os";
+import { chmod, mkdir, stat, writeFile } from "node:fs/promises";
+import { arch, homedir, platform } from "node:os";
 import { join } from "node:path";
 
 const VERSION = "0.1.0";
@@ -24,7 +24,7 @@ function libraryFileName(os, cpuArch) {
 
 function downloadUrl(version, os, cpuArch) {
   const filename = libraryFileName(os, cpuArch);
-  return `https://github.com/tracker1/mssql-ts-ffi/releases/download/v${version}/${filename}`;
+  return `https://github.com/tsdrivers/mssql/releases/download/v${version}/${filename}`;
 }
 
 async function main() {
@@ -34,12 +34,12 @@ async function main() {
   const os = plat === "darwin"
     ? "darwin"
     : plat === "win32"
-      ? "windows"
-      : "linux";
+    ? "windows"
+    : "linux";
   const cpuArch = processArch === "arm64" ? "aarch64" : "x86_64";
 
   const home = homedir();
-  const cacheDir = join(home, ".cache", "tracker1-mssql", VERSION);
+  const cacheDir = join(home, ".cache", "@tsdrivers", "mssql", VERSION);
   const filename = libraryFileName(os, cpuArch);
   const destPath = join(cacheDir, filename);
 
@@ -47,14 +47,14 @@ async function main() {
   try {
     await stat(destPath);
     console.log(
-      `[@tracker1/mssql] Native library already installed at ${destPath}`,
+      `[@tsdrivers/mssql] Native library already installed at ${destPath}`,
     );
     return;
   } catch {
     // File doesn't exist, proceed with download
   }
 
-  console.log("[@tracker1/mssql] Installing native library...");
+  console.log("[@tsdrivers/mssql] Installing native library...");
   console.log(`  Platform: ${os}-${cpuArch}`);
 
   await mkdir(cacheDir, { recursive: true });
@@ -77,12 +77,12 @@ async function main() {
       await chmod(destPath, 0o755);
     }
 
-    console.log("[@tracker1/mssql] Done.");
+    console.log("[@tsdrivers/mssql] Done.");
   } catch (err) {
     console.warn(
-      `[@tracker1/mssql] Could not download native library: ${err.message}\n` +
+      `[@tsdrivers/mssql] Could not download native library: ${err.message}\n` +
         "  You may need to install it manually.\n" +
-        "  See: https://github.com/tracker1/mssql-ts-ffi#installation",
+        "  See: https://github.com/tsdrivers/mssql#installation",
     );
   }
 }

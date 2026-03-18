@@ -1,19 +1,19 @@
-# Design Document — @tracker1/mssql
+# Design Document — @tsdrivers/mssql
 
 SQL Server driver for Deno, Node.js 22+, and Bun via Rust FFI.
 
-**Repository:** `github.com/tracker1/mssql-ts-ffi`
-**Docs:** `tracker1.github.io/mssql-ts-ffi`
+**Repository:** `github.com/tsdrivers/mssql` **Docs:**
+`tsdrivers.github.io/mssql`
 
 ## Package
 
-| Registry | Package | Description |
-|---|---|---|
-| JSR / npm | `@tracker1/mssql` | Unified package — auto-detects runtime, embedded FFI |
+| Registry  | Package            | Description                                          |
+| --------- | ------------------ | ---------------------------------------------------- |
+| JSR / npm | `@tsdrivers/mssql` | Unified package — auto-detects runtime, embedded FFI |
 
-A single package supports all three runtimes. FFI adapters for Deno (`Deno.dlopen`),
-Node.js (`koffi`), and Bun (`bun:ffi`) are embedded directly in the package.
-Runtime detection happens automatically at first use.
+A single package supports all three runtimes. FFI adapters for Deno
+(`Deno.dlopen`), Node.js (`koffi`), and Bun (`bun:ffi`) are embedded directly in
+the package. Runtime detection happens automatically at first use.
 
 ## Architecture
 
@@ -22,27 +22,29 @@ Rust cdylib (mssql-client + mssql-driver-pool + tokio) → C ABI → FFI boundar
   ↕ u64 handle IDs, JSON strings
 Deno.dlopen / bun:ffi / koffi → RuntimeFFI interface → Core TS classes
   ↑
-@tracker1/mssql → detects runtime → loads correct FFI adapter
+@tsdrivers/mssql → detects runtime → loads correct FFI adapter
 ```
 
 ### Embedded FFI Architecture
 
-`@tracker1/mssql` contains FFI adapters for all three runtimes (`ffi/deno.ts`,
-`ffi/node.ts`, `ffi/bun.ts`). At first use, `ffi/resolve.ts` detects the
-runtime and dynamically imports the correct adapter:
+`@tsdrivers/mssql` contains FFI adapters for all three runtimes (`ffi/deno.ts`,
+`ffi/node.ts`, `ffi/bun.ts`). At first use, `ffi/resolve.ts` detects the runtime
+and dynamically imports the correct adapter:
 
-- **Deno:** FFI initialization starts eagerly at module evaluation time
-  (Deno's `dlopen` is synchronous, so the FFI is typically ready before
-  user code calls `createPool()`/`connect()`)
-- **Node.js:** Uses `koffi` for FFI (listed as `optionalDependencies`; auto-installed
-  on demand if missing). Lazy initialization on first use
+- **Deno:** FFI initialization starts eagerly at module evaluation time (Deno's
+  `dlopen` is synchronous, so the FFI is typically ready before user code calls
+  `createPool()`/`connect()`)
+- **Node.js:** Uses `koffi` for FFI (listed as `optionalDependencies`;
+  auto-installed on demand if missing). Lazy initialization on first use
 - **Bun:** Uses `bun:ffi`. Lazy initialization on first use
 - A shared `Promise` ensures the backend is resolved only once; concurrent
   callers await the same promise
 
 ### Key Decisions
+
 - **FFI via C ABI** — stable across platforms, no WASM TCP limitations
-- **mssql-client with rustls** — pure Rust TDS (supports TDS 7.3–8.0), no OpenSSL dependency
+- **mssql-client with rustls** — pure Rust TDS (supports TDS 7.3–8.0), no
+  OpenSSL dependency
 - **mssql-driver-pool** — built-in connection pooling (replaces bb8)
 - **Embedded tokio runtime** — FFI calls block_on async operations
 - **u64 opaque handles** — safer than raw pointers across FFI
@@ -54,7 +56,7 @@ runtime and dynamically imports the correct adapter:
 ## Public API
 
 ```typescript
-import * as mssql from "@tracker1/mssql";
+import * as mssql from "@tsdrivers/mssql";
 
 // Pool
 const pool = await mssql.createPool(connectionString);
@@ -113,6 +115,7 @@ await mssql.supportsUtf8(cn)
 ## Connection String Formats
 
 ### ADO.NET
+
 ```
 Server=localhost;Database=mydb;User Id=sa;Password=pass;
 Server=tcp:host,port;Database=mydb;Integrated Security=true;
@@ -120,12 +123,14 @@ Server=host\INSTANCE;Database=mydb;User Id=sa;Password='has;semicolons';
 ```
 
 ### URL
+
 ```
 mssql://sa:pass@localhost/mydb
 mssql://localhost/mydb?integratedSecurity=true&domain=CORP
 ```
 
 ### Config Object (tedious-compatible)
+
 ```typescript
 {
   server: "localhost",
@@ -138,12 +143,14 @@ mssql://localhost/mydb?integratedSecurity=true&domain=CORP
 ```
 
 ### Defaults
+
 - encrypt: true
 - trust_server_certificate: true
 - port: 1433
 - database: "master"
 
 ### Implicit Windows Auth
+
 No credentials + Windows OS → SSPI
 
 ## FFI Contract
@@ -151,6 +158,7 @@ No credentials + Windows OS → SSPI
 All handles are u64 IDs. Return 0 = failure. Check mssql_last_error().
 
 ### Symbols
+
 ```
 mssql_pool_create(config_json: *c_char) → u64
 mssql_pool_acquire(pool_id: u64) → u64
@@ -194,21 +202,22 @@ only destroys the pool when it reaches 0.
 
 ### Platform targets (6)
 
-| Target | Filename |
-|--------|----------|
-| x86_64-unknown-linux-gnu | `mssqlts-linux-x86_64.so` |
-| aarch64-unknown-linux-gnu | `mssqlts-linux-aarch64.so` |
-| x86_64-apple-darwin | `mssqlts-macos-x86_64.dylib` |
-| aarch64-apple-darwin | `mssqlts-macos-aarch64.dylib` |
-| x86_64-pc-windows-msvc | `mssqlts-windows-x86_64.dll` |
-| aarch64-pc-windows-msvc | `mssqlts-windows-aarch64.dll` |
+| Target                    | Filename                      |
+| ------------------------- | ----------------------------- |
+| x86_64-unknown-linux-gnu  | `mssqlts-linux-x86_64.so`     |
+| aarch64-unknown-linux-gnu | `mssqlts-linux-aarch64.so`    |
+| x86_64-apple-darwin       | `mssqlts-macos-x86_64.dylib`  |
+| aarch64-apple-darwin      | `mssqlts-macos-aarch64.dylib` |
+| x86_64-pc-windows-msvc    | `mssqlts-windows-x86_64.dll`  |
+| aarch64-pc-windows-msvc   | `mssqlts-windows-aarch64.dll` |
 
 Filenames use `mssqlts-{os}-{arch}.{ext}` so all 6 can coexist in a single
 directory, GitHub release, or distribution package. The resolver picks the one
 matching the current execution environment.
 
 ### Resolution order
-1. `TRACKER1_MSSQL_LIB_PATH` env var (explicit path)
+
+1. `TSDRIVERS_MSSQL_LIB_PATH` env var (explicit path)
 2. `node_modules/pkg/native/` (Node/Bun postinstall location)
 3. Walk up from cwd — at each directory check:
    - `{dir}/{filename}`
@@ -218,19 +227,20 @@ matching the current execution environment.
 5. Home directory — check:
    - `~/lib/{filename}`, `~/.lib/{filename}`
    - `~/bin/{filename}`, `~/.bin/{filename}`
-6. `~/.cache/tracker1-mssql/{version}/{filename}`
+6. `~/.cache/@tsdrivers/mssql/{version}/{filename}`
 7. Download from GitHub releases
 
 ### Node/Bun: postinstall downloads to node_modules/pkg/native/
+
 ### Deno: lazy download on first use, or explicit install script
 
 ## Platform Dependencies
 
-| Feature | All Platforms | Windows Only |
-|---------|:---:|:---:|
-| Core (queries, pool, tx, bulk, streaming) | ✅ zero deps | |
-| Windows Auth (SSPI) | | ✅ zero deps |
-| FILESTREAM | | ⚠️ needs Microsoft OLE DB Driver 19 (lazy detected) |
+| Feature                                   | All Platforms |                    Windows Only                     |
+| ----------------------------------------- | :-----------: | :-------------------------------------------------: |
+| Core (queries, pool, tx, bulk, streaming) | ✅ zero deps  |                                                     |
+| Windows Auth (SSPI)                       |               |                    ✅ zero deps                     |
+| FILESTREAM                                |               | ⚠️ needs Microsoft OLE DB Driver 19 (lazy detected) |
 
 ## CI/CD
 
@@ -241,7 +251,7 @@ matching the current execution environment.
 
 ## Documentation
 
-- VitePress site at tracker1.github.io/mssql-ts-ffi/
+- VitePress site at tsdrivers.github.io/mssql/
 - TypeDoc generates API reference from JSDoc in projects/mssql/core/
 - Guide pages in docs/src/guide/
 - Runtime-specific tabs in code examples

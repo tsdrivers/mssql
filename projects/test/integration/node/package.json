@@ -1,7 +1,7 @@
 {
   "private": true,
   "type": "module",
-  "description": "Node.js integration tests for @tracker1/mssql",
+  "description": "Node.js integration tests for @tsdrivers/mssql",
   "dependencies": {
     "koffi": "^2.9.0"
   }

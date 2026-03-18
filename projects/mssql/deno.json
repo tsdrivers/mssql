@@ -1,5 +1,5 @@
 {
-  "name": "@tracker1/mssql",
+  "name": "@tsdrivers/mssql",
   "version": "0.1.0",
   "exports": {
     ".": "./mod.ts",

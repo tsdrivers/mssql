@@ -108,7 +108,7 @@ Deno.test("parseConnection - ADO.NET defaults", () => {
   assertEquals(cfg.trust_server_certificate, true);
   assertEquals(cfg.connect_timeout_ms, 15000);
   assertEquals(cfg.request_timeout_ms, 15000);
-  assertEquals(cfg.app_name, "@tracker1/mssql");
+  assertEquals(cfg.app_name, "@tsdrivers/mssql");
   assertEquals(cfg.instance_name, null);
   assertEquals(cfg.packet_size, 4096);
   assertEquals(cfg.pool, null);
