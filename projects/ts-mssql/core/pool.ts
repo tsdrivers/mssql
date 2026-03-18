@@ -252,7 +252,7 @@ export class PooledQueryStream<T = Record<string, unknown>>
 /**
  * Bulk insert builder that acquires a pool connection on execute.
  */
-class PoolBulkInsertBuilder {
+export class PoolBulkInsertBuilder {
   #table: string;
   #pool: MssqlPool;
   #columns: import("./types.ts").BulkColumn[] = [];

@@ -2,9 +2,9 @@
   "private": true,
   "type": "module",
   "devDependencies": {
+    "@types/node": "^22.0.0",
     "typedoc": "^0.28.0",
     "typedoc-plugin-markdown": "^4.4.0",
-    "typedoc-vitepress-theme": "^1.1.0",
-    "vitepress": "^1.6.0"
+    "typedoc-vitepress-theme": "^1.1.0"
   }
 }

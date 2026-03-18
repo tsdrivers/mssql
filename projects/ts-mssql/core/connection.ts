@@ -368,7 +368,7 @@ export class MssqlConnection implements Disposable, AsyncDisposable {
 // ── Accessor classes for sub-object APIs ─────────────────────
 
 /** Windows FILESTREAM sub-object: `cn.fs` */
-class FilestreamAccessor {
+export class FilestreamAccessor {
   #cn: MssqlConnection;
   #ffi: RuntimeFFI;
 
@@ -453,7 +453,7 @@ class FilestreamAccessor {
 }
 
 /** Cross-platform blob streaming sub-object: `cn.blob` */
-class BlobAccessor {
+export class BlobAccessor {
   #cn: MssqlConnection;
 
   constructor(cn: MssqlConnection) {
@@ -472,7 +472,7 @@ class BlobAccessor {
 }
 
 /** `cn.blob.filestream` — node:stream Readable/Writable for VARBINARY(MAX). */
-class BlobFilestreamAccessor {
+export class BlobFilestreamAccessor {
   #cn: MssqlConnection;
 
   constructor(cn: MssqlConnection) {
@@ -493,7 +493,7 @@ class BlobFilestreamAccessor {
 }
 
 /** `cn.blob.webstream` — Web ReadableStream/WritableStream for VARBINARY(MAX). */
-class BlobWebstreamAccessor {
+export class BlobWebstreamAccessor {
   #cn: MssqlConnection;
 
   constructor(cn: MssqlConnection) {

@@ -1,7 +1,7 @@
 ---
 layout: home
 hero:
-  name: @tsdrivers/mssql
+  name: "@tsdrivers/mssql"
   tagline: SQL Server driver for Deno, Node.js 22+, and Bun via Rust FFI
   actions:
     - theme: brand

@@ -30,14 +30,21 @@ jobs:
         with:
           deno-version: v2.x
 
-      - name: Install dependencies
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Install root dependencies
         run: deno install
+
+      - name: Install docs dependencies
+        run: npm --prefix docs install
 
       - name: Generate API docs
         run: deno run -A npm:typedoc
 
       - name: Build VitePress
-        run: deno run -A npm:vitepress build docs
+        run: npm --prefix docs run build
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3

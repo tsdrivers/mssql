@@ -12,10 +12,11 @@ if [[ ! -d "docs/node_modules/vitepress" ]]; then
   npm --prefix docs install
 fi
 
-# Generate API docs from TypeDoc, then start VitePress dev server
+# Generate API docs from TypeDoc
 echo "Generating API reference from source..."
 deno run -A npm:typedoc
 
+# Build VitePress site
 echo ""
-echo "Starting VitePress dev server..."
-npm --prefix docs run dev
+echo "Building VitePress site..."
+npm --prefix docs run build
