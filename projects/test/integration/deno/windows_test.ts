@@ -18,12 +18,11 @@ Deno.test({
   ignore: skipWindows || skipMssql,
   async fn() {
     // Use Windows auth connection string
-    const cn = await mssql.connect(
+    await using cn = await mssql.connect(
       "Server=localhost;Database=master;Integrated Security=true;TrustServerCertificate=true;",
     );
     const result = await cn.query<{ val: number }>("SELECT 1 AS val");
     assertEquals(result[0].val, 1);
-    cn.disconnect();
   },
 });
 

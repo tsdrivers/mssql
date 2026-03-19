@@ -4,14 +4,13 @@ Stream large `VARBINARY(MAX)` data in chunks without loading the entire value
 into memory. Works on **all platforms** (Windows, Linux, macOS) using standard
 SQL queries under the hood.
 
-::: tip When to Use
-Use blob streaming for binary data too large to fit comfortably in a single
-query result (multi-MB files, images, documents). For smaller data (< 10 MB),
-standard parameterized queries are simpler — see [Binary Data](./binary).
+::: tip When to Use Use blob streaming for binary data too large to fit
+comfortably in a single query result (multi-MB files, images, documents). For
+smaller data (< 10 MB), standard parameterized queries are simpler — see
+[Binary Data](./binary).
 
 For Windows-only FILESTREAM I/O via native file handles, see
-[FILESTREAM](./filestream).
-:::
+[FILESTREAM](./filestream). :::
 
 ## Transaction Required
 
@@ -87,7 +86,7 @@ environment that prefers Web Standard streams:
 await using cn = await mssql.connect(connectionString);
 await using tx = await cn.beginTransaction();
 
-const stream = cn.blob.webstream.read(tx, {
+await using stream = cn.blob.webstream.read(tx, {
   table: "Documents",
   column: "data",
   where: "id = @id",
@@ -95,7 +94,7 @@ const stream = cn.blob.webstream.read(tx, {
 });
 
 // Deno: pipe to a file
-const file = await Deno.open("output.bin", { write: true, create: true });
+using file = await Deno.open("output.bin", { write: true, create: true });
 await stream.pipeTo(file.writable);
 await tx.commit();
 ```
@@ -115,7 +114,7 @@ await cn.execute(
   { transaction: tx },
 );
 
-const stream = cn.blob.webstream.write(tx, {
+await using stream = cn.blob.webstream.write(tx, {
   table: "Documents",
   column: "data",
   where: "id = @id",
@@ -123,36 +122,34 @@ const stream = cn.blob.webstream.write(tx, {
 });
 
 // Deno: pipe from a file
-const file = await Deno.open("input.bin", { read: true });
+using file = await Deno.open("input.bin", { read: true });
 await file.readable.pipeTo(stream);
 await tx.commit();
 ```
 
 ## BlobTarget Options
 
-| Option      | Type                      | Default          | Description                                          |
-| ----------- | ------------------------- | ---------------- | ---------------------------------------------------- |
-| `table`     | `string`                  | _(required)_     | Table name (auto bracket-escaped)                    |
-| `column`    | `string`                  | _(required)_     | VARBINARY(MAX) column name (auto bracket-escaped)    |
-| `where`     | `string`                  | _(required)_     | WHERE clause identifying the row (e.g. `"id = @id"`) |
-| `params`    | `Record<string, unknown>` | `{}`             | Parameters for the WHERE clause                      |
-| `chunkSize` | `number`                  | `1048576` (1 MB) | Chunk size in bytes for streaming                    |
+| Option      | Type                      | Default          | Description                                            |
+| ----------- | ------------------------- | ---------------- | ------------------------------------------------------ |
+| `table`     | `string`                  | _(required)_     | Table name (use brackets for escaping)                 |
+| `column`    | `string`                  | _(required)_     | VARBINARY(MAX) column name (use brackets for escaping) |
+| `where`     | `string`                  | _(required)_     | WHERE clause identifying the row (e.g. `"id = @id"`)   |
+| `params`    | `Record<string, unknown>` | `{}`             | Parameters for the WHERE clause                        |
+| `chunkSize` | `number`                  | `1048576` (1 MB) | Chunk size in bytes for streaming                      |
 
-Multi-part table names are supported — each part is bracket-escaped
-individually. Already-bracketed names are passed through as-is:
+Table and column names are used as-is in the generated SQL. Use bracket escaping
+if your names contain special characters or are reserved words:
 
 ```ts
-// All of these work:
-{ table: "Documents", ... }                    // [Documents]
-{ table: "dbo.Documents", ... }                // [dbo].[Documents]
-{ table: "MyDB.dbo.Documents", ... }           // [MyDB].[dbo].[Documents]
-{ table: "[dbo].[Documents]", ... }            // [dbo].[Documents] (unchanged)
+{ table: "Documents", ... }                    // Documents
+{ table: "[dbo].[Documents]", ... }            // [dbo].[Documents]
+{ table: "[MyDB].[dbo].[Documents]", ... }     // [MyDB].[dbo].[Documents]
 ```
 
 ## API Summary
 
-| Method                              | Returns                | Description                    |
-| ----------------------------------- | ---------------------- | ------------------------------ |
+| Method                                 | Returns                | Description                    |
+| -------------------------------------- | ---------------------- | ------------------------------ |
 | `cn.blob.filestream.read(tx, target)`  | `node:stream.Readable` | Read VARBINARY(MAX) in chunks  |
 | `cn.blob.filestream.write(tx, target)` | `node:stream.Writable` | Write VARBINARY(MAX) in chunks |
 | `cn.blob.webstream.read(tx, target)`   | `ReadableStream`       | Read (Web Standard)            |
@@ -162,19 +159,19 @@ individually. Already-bracketed names are passed through as-is:
 
 The sub-object pattern mirrors the FILESTREAM API:
 
-| Feature                        | Node.js Streams         | Web Streams             |
-| ------------------------------ | ----------------------- | ----------------------- |
-| FILESTREAM (Windows)           | `cn.fs.open(path, ...)`   | `cn.fs.openWeb(path, ...)` |
-| Blob streaming (all platforms) | `cn.blob.filestream.*`  | `cn.blob.webstream.*`   |
+| Feature                        | Node.js Streams         | Web Streams                |
+| ------------------------------ | ----------------------- | -------------------------- |
+| FILESTREAM (Windows)           | `cn.fs.open(path, ...)` | `cn.fs.openWeb(path, ...)` |
+| Blob streaming (all platforms) | `cn.blob.filestream.*`  | `cn.blob.webstream.*`      |
 
 ## Comparison with FILESTREAM
 
-| Feature      | Blob Streaming                       | FILESTREAM                              |
-| ------------ | ------------------------------------ | --------------------------------------- |
-| Platform     | All (Windows, Linux, macOS)          | Windows only                            |
-| Mechanism    | SQL queries (`SUBSTRING` / `.WRITE`) | Win32 file handle (`OpenSqlFilestream`) |
-| Server setup | None                                 | FILESTREAM filegroup required           |
-| Dependencies | ODBC Driver 18 (already required)    | ODBC Driver 18 (already required)       |
-| Performance  | Good (SQL round-trips per chunk)     | Best (direct file I/O)                  |
+| Feature      | Blob Streaming                         | FILESTREAM                                      |
+| ------------ | -------------------------------------- | ----------------------------------------------- |
+| Platform     | All (Windows, Linux, macOS)            | Windows only                                    |
+| Mechanism    | SQL queries (`SUBSTRING` / `.WRITE`)   | Win32 file handle (`OpenSqlFilestream`)         |
+| Server setup | None                                   | FILESTREAM filegroup required                   |
+| Dependencies | ODBC Driver 18 (already required)      | ODBC Driver 18 (already required)               |
+| Performance  | Good (SQL round-trips per chunk)       | Best (direct file I/O)                          |
 | Max size     | 2 GB (SQL Server VARBINARY(MAX) limit) | Unlimited (direct file I/O bypasses SQL engine) |
-| Transaction  | Required                             | Required                                |
+| Transaction  | Required                               | Required                                        |

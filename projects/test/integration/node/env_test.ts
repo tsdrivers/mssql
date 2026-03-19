@@ -7,6 +7,7 @@ import { describe, test } from "node:test";
 import { strictEqual } from "node:assert/strict";
 import { getTestEnv } from "./test_helpers.ts";
 import { parseConnection } from "../../../ts-mssql/core/config.ts";
+import process from "node:process";
 
 describe("environment detection", () => {
   test("detects OS correctly", () => {

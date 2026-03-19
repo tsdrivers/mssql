@@ -1,18 +1,19 @@
 # FILESTREAM
 
-SQL Server FILESTREAM allows storing large binary data (BLOBs) directly on the file system while maintaining transactional consistency.
+SQL Server FILESTREAM allows storing large binary data (BLOBs) directly on the
+file system while maintaining transactional consistency.
 
-::: warning Windows Only
-FILESTREAM is only available on Windows with the [Microsoft ODBC Driver 18 for SQL Server](https://learn.microsoft.com/en-us/sql/connect/odbc/download-odbc-driver-for-sql-server) installed (required for all features).
+::: warning Windows Only FILESTREAM is only available on Windows with the
+[Microsoft ODBC Driver 18 for SQL Server](https://learn.microsoft.com/en-us/sql/connect/odbc/download-odbc-driver-for-sql-server)
+installed (required for all features).
 
-For cross-platform streaming of large `VARBINARY(MAX)` data that works on
-all platforms, see [Blob Streaming](./blob-streaming).
-:::
+For cross-platform streaming of large `VARBINARY(MAX)` data that works on all
+platforms, see [Blob Streaming](./blob-streaming). :::
 
 ## Check Availability
 
-Checks all three requirements: ODBC driver installed, server FILESTREAM
-access level >= 2, and a FILESTREAM filegroup exists in the target database.
+Checks all three requirements: ODBC driver installed, server FILESTREAM access
+level >= 2, and a FILESTREAM filegroup exists in the target database.
 
 ```ts
 await using cn = await mssql.connect("Server=localhost;...");
@@ -31,7 +32,7 @@ if (await cn.fs.available("MyFilestreamDB")) {
 Also works on pools:
 
 ```ts
-const pool = await mssql.createPool("Server=localhost;...");
+await using pool = await mssql.createPool("Server=localhost;...");
 if (await pool.filestreamAvailable()) {
   // ...
 }
@@ -41,12 +42,13 @@ if (await pool.filestreamAvailable()) {
 
 `@tsdrivers/mssql` provides two ways to work with FILESTREAM blobs via `cn.fs`:
 
-| Method | Returns | Best for |
-|---|---|---|
-| `cn.fs.open()` | `node:stream` Readable / Writable / Duplex | `pipe()`, Node.js patterns, `node:fs` interop |
-| `cn.fs.openWeb()` | Web Standard ReadableStream / WritableStream | `pipeTo()`, Deno patterns, Web API interop |
+| Method            | Returns                                      | Best for                                      |
+| ----------------- | -------------------------------------------- | --------------------------------------------- |
+| `cn.fs.open()`    | `node:stream` Readable / Writable / Duplex   | `pipe()`, Node.js patterns, `node:fs` interop |
+| `cn.fs.openWeb()` | Web Standard ReadableStream / WritableStream | `pipeTo()`, Deno patterns, Web API interop    |
 
-Both require an active transaction and the FILESTREAM path + transaction context from a query.
+Both require an active transaction and the FILESTREAM path + transaction context
+from a query.
 
 ## Getting the Path and Context
 
@@ -59,7 +61,7 @@ const row = await cn.querySingle<{ path: string; ctx: Uint8Array }>(
           GET_FILESTREAM_TRANSACTION_CONTEXT() AS ctx
      FROM Documents WHERE id = @id`,
   { id: docId },
-  { transaction: tx }
+  { transaction: tx },
 );
 ```
 
@@ -116,13 +118,13 @@ await tx.commit();
 
 ## Web Streams (`cn.fs.openWeb`)
 
-Returns a Web Standard `ReadableStream` or `WritableStream`.
-Native in all runtimes — ideal for Deno's file APIs and the Fetch/Streams spec.
+Returns a Web Standard `ReadableStream` or `WritableStream`. Native in all
+runtimes — ideal for Deno's file APIs and the Fetch/Streams spec.
 
 ### Read a blob
 
 ```ts
-const readable = cn.fs.openWeb(row.path, row.ctx, "read");
+await using readable = cn.fs.openWeb(row.path, row.ctx, "read");
 
 const reader = readable.getReader();
 while (true) {
@@ -135,7 +137,7 @@ while (true) {
 ### Write a blob
 
 ```ts
-const writable = cn.fs.openWeb(row.path, row.ctx, "write");
+await using writable = cn.fs.openWeb(row.path, row.ctx, "write");
 
 const writer = writable.getWriter();
 await writer.write(new Uint8Array([0x48, 0x65, 0x6c, 0x6c, 0x6f]));
@@ -146,7 +148,7 @@ await tx.commit();
 ### Pipe from a local file into FILESTREAM (Deno)
 
 ```ts
-const writable = cn.fs.openWeb(row.path, row.ctx, "write");
+await using writable = cn.fs.openWeb(row.path, row.ctx, "write");
 
 using file = await Deno.open("./upload.bin", { read: true });
 await file.readable.pipeTo(writable);
@@ -157,7 +159,7 @@ await tx.commit();
 ### Pipe from FILESTREAM to a local file (Deno)
 
 ```ts
-const readable = cn.fs.openWeb(row.path, row.ctx, "read");
+await using readable = cn.fs.openWeb(row.path, row.ctx, "read");
 
 using file = await Deno.open("./download.bin", { write: true, create: true });
 await readable.pipeTo(file.writable);
@@ -170,7 +172,7 @@ await tx.commit();
 For `"readwrite"` mode, `cn.fs.openWeb` returns an object with both streams:
 
 ```ts
-const { readable, writable } = cn.fs.openWeb(row.path, row.ctx, "readwrite");
+const { readable, writable } = cn.fs.openWeb(row.path, row.ctx, "readwrite"); // individual streams are disposable
 ```
 
 ## Close and Commit
@@ -233,16 +235,14 @@ async function* readNdjsonGz<T>(
 }
 ```
 
-::: tip Early break
-If the caller exits the `for await` loop early (e.g. with `break`), the
-generator's cleanup path runs and the transaction rolls back. For reads this
-is safe — the rollback has no effect on data.
-:::
+::: tip Early break If the caller exits the `for await` loop early (e.g. with
+`break`), the generator's cleanup path runs and the transaction rolls back. For
+reads this is safe — the rollback has no effect on data. :::
 
 #### Web Streams (Deno-compatible)
 
-Uses `DecompressionStream` and `TextDecoderStream` — both are standard Web
-APIs available natively in Deno, Node.js 18+, and Bun:
+Uses `DecompressionStream` and `TextDecoderStream` — both are standard Web APIs
+available natively in Deno, Node.js 18+, and Bun:
 
 ```ts
 import * as mssql from "@tsdrivers/mssql";
@@ -290,11 +290,15 @@ async function* readNdjsonGzWeb<T>(
 
 ### Consuming the async iterable
 
-Both `readNdjsonGz` and `readNdjsonGzWeb` return an async generator that
-streams records one at a time without buffering the entire file in memory:
+Both `readNdjsonGz` and `readNdjsonGzWeb` return an async generator that streams
+records one at a time without buffering the entire file in memory:
 
 ```ts
-interface LogEntry { ts: string; level: string; msg: string }
+interface LogEntry {
+  ts: string;
+  level: string;
+  msg: string;
+}
 
 // Process records one by one
 for await (const entry of readNdjsonGz<LogEntry>(cn, "audit-2024.ndjson.gz")) {

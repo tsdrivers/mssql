@@ -1,9 +1,10 @@
-import { assertEquals, assertNotEquals } from "jsr:@std/assert";
+import { assertEquals } from "jsr:@std/assert";
 import { newCOMB } from "./comb.ts";
 
 Deno.test("newCOMB - returns valid UUID format", () => {
   const uuid = newCOMB();
-  const pattern = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+  const pattern =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
   assertEquals(pattern.test(uuid), true, `Invalid UUID format: ${uuid}`);
 });
 

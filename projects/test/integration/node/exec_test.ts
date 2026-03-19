@@ -9,12 +9,15 @@ import { getTestEnv, skipMssql } from "./test_helpers.ts";
 import * as mssql from "../../../ts-mssql/mod.ts";
 
 describe("stored procedures", () => {
-  test("exec with output params and multiple result sets", { skip: skipMssql }, async () => {
-    const env = getTestEnv();
-    await using cn = await mssql.connect(env.connectionString);
+  test(
+    "exec with output params and multiple result sets",
+    { skip: skipMssql },
+    async () => {
+      const env = getTestEnv();
+      await using cn = await mssql.connect(env.connectionString);
 
-    // Create temp stored procedure with input/output params and multiple result sets
-    await cn.execute(`
+      // Create temp stored procedure with input/output params and multiple result sets
+      await cn.execute(`
     CREATE PROCEDURE #sp_ExecTest
       @inputId INT,
       @inputName NVARCHAR(100),
@@ -36,40 +39,41 @@ describe("stored procedures", () => {
     END
   `);
 
-    // Call stored procedure with OUTPUT params via exec()
-    const result = await cn.exec("#sp_ExecTest", {
-      inputId: 10,
-      inputName: "Alice",
-      totalCount: { value: null, type: "int", output: true },
-      greeting: { value: null, type: "nvarchar", output: true },
-    }, { commandType: "stored_procedure" });
+      // Call stored procedure with OUTPUT params via exec()
+      const result = await cn.exec("#sp_ExecTest", {
+        inputId: 10,
+        inputName: "Alice",
+        totalCount: { value: null, type: "int", output: true },
+        greeting: { value: null, type: "nvarchar", output: true },
+      }, { commandType: "stored_procedure" });
 
-    // Verify OUTPUT parameters
-    strictEqual(result.getOutput<number>("totalCount"), 2);
-    strictEqual(result.getOutput<string>("greeting"), "Hello, Alice!");
-    // @ prefix should also work
-    strictEqual(result.getOutput<number>("@totalCount"), 2);
+      // Verify OUTPUT parameters
+      strictEqual(result.getOutput<number>("totalCount"), 2);
+      strictEqual(result.getOutput<string>("greeting"), "Hello, Alice!");
+      // @ prefix should also work
+      strictEqual(result.getOutput<number>("@totalCount"), 2);
 
-    // Verify multiple result sets
-    strictEqual(result.resultSets, 2);
+      // Verify multiple result sets
+      strictEqual(result.resultSets, 2);
 
-    // Result set 0: two rows from the UNION ALL
-    const items = result.getResults<{ id: number; name: string }>(0);
-    strictEqual(items.length, 2);
-    strictEqual(items[0].id, 10);
-    strictEqual(items[0].name, "Alice");
-    strictEqual(items[1].id, 11);
-    strictEqual(items[1].name, "Alice_2");
+      // Result set 0: two rows from the UNION ALL
+      const items = result.getResults<{ id: number; name: string }>(0);
+      strictEqual(items.length, 2);
+      strictEqual(items[0].id, 10);
+      strictEqual(items[0].name, "Alice");
+      strictEqual(items[1].id, 11);
+      strictEqual(items[1].name, "Alice_2");
 
-    // Result set 1: summary row
-    const summary = result.getResultFirst<{
-      answer: number;
-      label: string;
-    }>(1);
-    ok(summary !== undefined);
-    strictEqual(summary.answer, 42);
-    strictEqual(summary.label, "summary");
-  });
+      // Result set 1: summary row
+      const summary = result.getResultFirst<{
+        answer: number;
+        label: string;
+      }>(1);
+      ok(summary !== undefined);
+      strictEqual(summary.answer, 42);
+      strictEqual(summary.label, "summary");
+    },
+  );
 
   test("exec via pool", { skip: skipMssql }, async () => {
     const env = getTestEnv();

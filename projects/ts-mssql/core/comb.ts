@@ -32,7 +32,9 @@ export function newCOMB(): string {
   bytes[14] = (now / 2 ** 8) & 0xff;
   bytes[15] = now & 0xff;
 
-  const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+  const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join(
+    "",
+  );
 
   return [
     hex.slice(0, 8),

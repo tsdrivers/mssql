@@ -3,7 +3,9 @@
 ## Basic Query
 
 ```ts
-const rows = await cn.query<{ id: number; name: string }>("SELECT id, name FROM Users");
+const rows = await cn.query<{ id: number; name: string }>(
+  "SELECT id, name FROM Users",
+);
 // rows: Array<{ id: number; name: string }>
 ```
 
@@ -14,7 +16,7 @@ Always use parameters for user input to prevent SQL injection:
 ```ts
 const rows = await cn.query<{ name: string }>(
   "SELECT name FROM Users WHERE age > @minAge AND city = @city",
-  { minAge: 18, city: "Portland" }
+  { minAge: 18, city: "Portland" },
 );
 ```
 
@@ -38,7 +40,9 @@ const rows = await cn.sql<{ id: number }>`
 Returns the first row or `undefined`:
 
 ```ts
-const user = await cn.queryFirst<{ name: string }>("SELECT TOP 1 name FROM Users");
+const user = await cn.queryFirst<{ name: string }>(
+  "SELECT TOP 1 name FROM Users",
+);
 if (user) {
   console.log(user.name);
 }
@@ -51,7 +55,7 @@ Returns exactly one row. Throws if zero or multiple rows:
 ```ts
 const user = await cn.querySingle<{ name: string }>(
   "SELECT name FROM Users WHERE id = @id",
-  { id: 1 }
+  { id: 1 },
 );
 ```
 
@@ -80,7 +84,10 @@ For explicit SQL type control:
 
 ```ts
 const rows = await cn.query("SELECT * FROM T WHERE Id = @id", {
-  id: { value: "550e8400-e29b-41d4-a716-446655440000", type: "uniqueidentifier" },
+  id: {
+    value: "550e8400-e29b-41d4-a716-446655440000",
+    type: "uniqueidentifier",
+  },
 });
 ```
 
@@ -117,11 +124,11 @@ const result = await cn.exec("sp_ProcessOrder", {
   status: { value: null, type: "nvarchar", output: true },
 }, { commandType: "stored_procedure" });
 
-result.rowsAffected;                    // number
-result.resultSets;                      // number (count of result sets)
-result.getOutput<number>("total");      // OUTPUT param value
-result.getOutput<string>("status");     // @ prefix is optional
-result.getResults<OrderItem>(0);        // T[] — rows from result set 0
+result.rowsAffected; // number
+result.resultSets; // number (count of result sets)
+result.getOutput<number>("total"); // OUTPUT param value
+result.getOutput<string>("status"); // @ prefix is optional
+result.getResults<OrderItem>(0); // T[] — rows from result set 0
 result.getResultFirst<OrderSummary>(1); // T | undefined — first row of set 1
 ```
 
@@ -146,7 +153,8 @@ const result = await pool.exec("sp_MyProc", params, {
 
 ## Binary Data
 
-Pass `Uint8Array` values — they are automatically base64-encoded for the FFI boundary:
+Pass `Uint8Array` values — they are automatically base64-encoded for the FFI
+boundary:
 
 ```ts
 const data = new Uint8Array([1, 2, 3, 4]);

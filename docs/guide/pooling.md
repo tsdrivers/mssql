@@ -1,15 +1,43 @@
 # Connection Pooling
 
+## Pool Lifetime
+
+Most applications should create a single pool at startup and reuse it for the
+lifetime of the process. Pools manage their own connections internally —
+creating a new pool per request or per function call defeats the purpose of
+pooling and adds unnecessary overhead.
+
+```ts
+// app.ts — create once at startup
+const pool = await mssql.createPool("Server=localhost;Database=mydb;...");
+
+export { pool };
+```
+
+```ts
+// routes/users.ts — import and reuse
+import { pool } from "../app.ts";
+
+export async function getUsers() {
+  return await pool.query("SELECT * FROM Users");
+}
+```
+
+::: tip If your application has a clean shutdown path, call `pool.close()` on
+exit. Otherwise the pool is cleaned up when the process ends. For short-lived
+scripts or tests, `await using` is convenient — but for long-lived servers,
+store the pool in a module-level variable. :::
+
 ## Creating a Pool
 
 ```ts
-await using pool = await mssql.createPool("Server=localhost;Database=mydb;...");
+const pool = await mssql.createPool("Server=localhost;Database=mydb;...");
 ```
 
 Pool configuration is included in the connection string or config object:
 
 ```ts
-await using pool = await mssql.createPool({
+const pool = await mssql.createPool({
   server: "localhost",
   database: "mydb",
   authentication: { type: "sql", userName: "sa", password: "pass" },
@@ -47,13 +75,17 @@ const rows = await cn.query("SELECT * FROM #tmp");
 
 ```ts
 const name = "Alice";
-const rows = await pool.sql<{ id: number }>`SELECT id FROM Users WHERE name = ${name}`;
+const rows = await pool.sql<
+  { id: number }
+>`SELECT id FROM Users WHERE name = ${name}`;
 ```
 
 ## Pool Streaming
 
 ```ts
-const stream = await pool.queryStream<{ id: number }>("SELECT id FROM BigTable");
+await using stream = await pool.queryStream<{ id: number }>(
+  "SELECT id FROM BigTable",
+);
 for await (const row of stream) {
   // Connection held during iteration
 }

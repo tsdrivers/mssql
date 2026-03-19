@@ -51,17 +51,12 @@ Deno.test({
   ignore: skipMssql,
   async fn() {
     const env = getTestEnv();
-    const pool1 = await mssql.createPool(env.connectionString);
-    const pool2 = await mssql.createPool(env.connectionString);
+    using _pool1 = await mssql.createPool(env.connectionString);
+    using _pool2 = await mssql.createPool(env.connectionString);
 
-    try {
-      const diag = await mssql.diagnosticInfo();
-      // Both createPool calls with same connection string should dedup to 1 pool
-      assertEquals(diag.pools.length, 1);
-    } finally {
-      pool1.close();
-      pool2.close();
-    }
+    const diag = await mssql.diagnosticInfo();
+    // Both createPool calls with same connection string should dedup to 1 pool
+    assertEquals(diag.pools.length, 1);
   },
 });
 
@@ -70,8 +65,8 @@ Deno.test({
   ignore: skipMssql,
   async fn() {
     const env = getTestEnv();
-    const pool1 = await mssql.createPool(env.connectionString);
-    const pool2 = await mssql.createPool(env.connectionString);
+    using pool1 = await mssql.createPool(env.connectionString);
+    using pool2 = await mssql.createPool(env.connectionString);
 
     // Close first handle — pool should stay alive due to refcount
     pool1.close();
@@ -80,8 +75,6 @@ Deno.test({
     const result = await pool2.query<{ val: number }>("SELECT 1 AS val");
     assertEquals(result.length, 1);
     assertEquals(result[0].val, 1);
-
-    pool2.close();
   },
 });
 
@@ -160,8 +153,8 @@ Deno.test({
     const env = getTestEnv();
 
     // Create a pool and a bare connection
-    const pool = await mssql.createPool(env.connectionString);
-    const cn = await mssql.connect(env.connectionString);
+    using _pool = await mssql.createPool(env.connectionString);
+    await using _cn = await mssql.connect(env.connectionString);
 
     // Verify they exist
     const diagBefore = await mssql.diagnosticInfo();
@@ -175,13 +168,5 @@ Deno.test({
     const diagAfter = await mssql.diagnosticInfo();
     assertEquals(diagAfter.pools.length, 0);
     assertEquals(diagAfter.connections.length, 0);
-
-    // Suppress dispose errors since handles are already invalidated
-    try {
-      pool.close();
-    } catch { /* already closed */ }
-    try {
-      await cn.close();
-    } catch { /* already closed */ }
   },
 });

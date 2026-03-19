@@ -39,36 +39,35 @@ describe("pool", () => {
 
   // ── Phase 13 pool enhancement tests ─────────────────────
 
-  test.skipIf(skipMssql)("dedup: same connection string shows 1 pool", async () => {
-    const env = getTestEnv();
-    const pool1 = await mssql.createPool(env.connectionString);
-    const pool2 = await mssql.createPool(env.connectionString);
+  test.skipIf(skipMssql)(
+    "dedup: same connection string shows 1 pool",
+    async () => {
+      const env = getTestEnv();
+      using _pool1 = await mssql.createPool(env.connectionString);
+      using _pool2 = await mssql.createPool(env.connectionString);
 
-    try {
       const diag = await mssql.diagnosticInfo();
       // Both createPool calls with same connection string should dedup to 1 pool
       expect(diag.pools.length).toBe(1);
-    } finally {
+    },
+  );
+
+  test.skipIf(skipMssql)(
+    "refcounting: close first holder, second still works",
+    async () => {
+      const env = getTestEnv();
+      using pool1 = await mssql.createPool(env.connectionString);
+      using pool2 = await mssql.createPool(env.connectionString);
+
+      // Close first handle — pool should stay alive due to refcount
       pool1.close();
-      pool2.close();
-    }
-  });
 
-  test.skipIf(skipMssql)("refcounting: close first holder, second still works", async () => {
-    const env = getTestEnv();
-    const pool1 = await mssql.createPool(env.connectionString);
-    const pool2 = await mssql.createPool(env.connectionString);
-
-    // Close first handle — pool should stay alive due to refcount
-    pool1.close();
-
-    // Second handle should still work
-    const result = await pool2.query<{ val: number }>("SELECT 1 AS val");
-    expect(result.length).toBe(1);
-    expect(result[0].val).toBe(1);
-
-    pool2.close();
-  });
+      // Second handle should still work
+      const result = await pool2.query<{ val: number }>("SELECT 1 AS val");
+      expect(result.length).toBe(1);
+      expect(result[0].val).toBe(1);
+    },
+  );
 
   test.skipIf(skipMssql)("close() evicts pooled connection", async () => {
     const env = getTestEnv();
@@ -130,8 +129,8 @@ describe("pool", () => {
     const env = getTestEnv();
 
     // Create a pool and a bare connection
-    const pool = await mssql.createPool(env.connectionString);
-    const cn = await mssql.connect(env.connectionString);
+    using _pool = await mssql.createPool(env.connectionString);
+    await using _cn = await mssql.connect(env.connectionString);
 
     // Verify they exist
     const diagBefore = await mssql.diagnosticInfo();
@@ -145,13 +144,5 @@ describe("pool", () => {
     const diagAfter = await mssql.diagnosticInfo();
     expect(diagAfter.pools.length).toBe(0);
     expect(diagAfter.connections.length).toBe(0);
-
-    // Suppress dispose errors since handles are already invalidated
-    try {
-      pool.close();
-    } catch { /* already closed */ }
-    try {
-      await cn.close();
-    } catch { /* already closed */ }
   });
 });

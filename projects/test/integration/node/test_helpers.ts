@@ -4,6 +4,7 @@
  * @module
  */
 
+import process from "node:process";
 export interface TestEnv {
   /** Whether a MSSQL server is reachable for integration tests */
   hasMssql: boolean;

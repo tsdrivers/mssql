@@ -41,7 +41,9 @@ describe("queries", () => {
     const name = "Bob";
     const age = 25;
     const result = await cn
-      .sql<{ name: string; age: number }>`SELECT ${name} AS name, ${age} AS age`;
+      .sql<
+      { name: string; age: number }
+    >`SELECT ${name} AS name, ${age} AS age`;
     strictEqual(result.length, 1);
     strictEqual(result[0].name, "Bob");
     strictEqual(result[0].age, 25);

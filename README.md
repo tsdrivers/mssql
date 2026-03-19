@@ -119,9 +119,8 @@ const users2 = await pool.query<
 
 ```ts
 // Pool
-const pool = await mssql.createPool(connectionString);
+await using pool = await mssql.createPool(connectionString);
 const rows = await pool.query<T>(sql, params?);
-await pool.close();
 
 // Connection
 await using cn = await pool.connect();
@@ -136,7 +135,7 @@ cn.execute(sql, params?, opts?)           // -> number (rows affected)
 cn.sql<T>`SELECT ... WHERE x = ${val}`   // -> T[] (tagged template)
 
 // Streaming
-const stream = await cn.queryStream<T>(sql, params?);
+await using stream = await cn.queryStream<T>(sql, params?);
 for await (const row of stream) { /* ... */ }
 await stream.toArray();
 stream.toReadableStream();

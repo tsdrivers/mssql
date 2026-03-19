@@ -9,11 +9,13 @@ function makeTransaction(
   const calls: string[] = [];
   const tx = new Transaction(
     isolation,
-    async (txId: string) => {
+    (txId: string) => {
       calls.push(`commit:${txId}`);
+      return Promise.resolve();
     },
-    async (txId: string) => {
+    (txId: string) => {
       calls.push(`rollback:${txId}`);
+      return Promise.resolve();
     },
   );
   return { tx, calls };
@@ -118,10 +120,8 @@ Deno.test("Transaction - asyncDispose no-op after rollback", async () => {
 Deno.test("Transaction - asyncDispose swallows rollback errors", async () => {
   const tx = new Transaction(
     "READ_COMMITTED",
-    async () => {},
-    async () => {
-      throw new Error("rollback failed");
-    },
+    () => Promise.resolve(),
+    () => Promise.reject(new Error("rollback failed")),
   );
   // Should not throw
   await tx[Symbol.asyncDispose]();

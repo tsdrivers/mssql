@@ -8,8 +8,7 @@
 
 import { connect } from "../../projects/ts-mssql/mod.ts";
 
-const SA_CONNECTION =
-  Deno.env.get("MSSQL_SA_CONNECTION") ??
+const SA_CONNECTION = Deno.env.get("MSSQL_SA_CONNECTION") ??
   "Server=localhost;Database=master;User Id=sa;Password=DevPassword1!;TrustServerCertificate=true;";
 
 const TEST_DB = "MSSQLTS_TEST";
@@ -20,7 +19,7 @@ function log(msg: string): void {
 
 try {
   log("Connecting to master...");
-  const cn = await connect(SA_CONNECTION);
+  await using cn = await connect(SA_CONNECTION);
 
   const existing = await cn.queryFirst<{ name: string }>(
     "SELECT name FROM sys.databases WHERE name = @db",
@@ -37,8 +36,6 @@ try {
   } else {
     log(`Database [${TEST_DB}] does not exist, nothing to drop.`);
   }
-
-  await cn.disconnect();
 } catch (err) {
   log(`ERROR: ${err}`);
   Deno.exit(1);

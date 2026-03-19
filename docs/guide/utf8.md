@@ -1,6 +1,7 @@
 # UTF-8 Collation
 
-SQL Server 2019+ supports UTF-8 collations for `VARCHAR` columns, reducing storage for predominantly ASCII data while supporting full Unicode.
+SQL Server 2019+ supports UTF-8 collations for `VARCHAR` columns, reducing
+storage for predominantly ASCII data while supporting full Unicode.
 
 ## Helpers
 
@@ -42,8 +43,8 @@ const sql = setDatabaseUtf8("MyDatabase");
 ```ts
 import { UTF8_COLLATIONS } from "@tsdrivers/mssql";
 
-UTF8_COLLATIONS.CI_AS;    // "Latin1_General_100_CI_AS_SC_UTF8"
-UTF8_COLLATIONS.CS_AS;    // "Latin1_General_100_CS_AS_SC_UTF8"
-UTF8_COLLATIONS.CI_AI;    // "Latin1_General_100_CI_AI_SC_UTF8"
-UTF8_COLLATIONS.CS_AI;    // "Latin1_General_100_CS_AI_SC_UTF8"
+UTF8_COLLATIONS.CI_AS; // "Latin1_General_100_CI_AS_SC_UTF8"
+UTF8_COLLATIONS.CS_AS; // "Latin1_General_100_CS_AS_SC_UTF8"
+UTF8_COLLATIONS.CI_AI; // "Latin1_General_100_CI_AI_SC_UTF8"
+UTF8_COLLATIONS.CS_AI; // "Latin1_General_100_CS_AI_SC_UTF8"
 ```

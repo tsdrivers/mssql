@@ -11,8 +11,7 @@
 
 import { connect } from "../../projects/ts-mssql/mod.ts";
 
-const SA_CONNECTION =
-  Deno.env.get("MSSQL_SA_CONNECTION") ??
+const SA_CONNECTION = Deno.env.get("MSSQL_SA_CONNECTION") ??
   "Server=localhost;Database=master;User Id=sa;Password=DevPassword1!;TrustServerCertificate=true;";
 
 const TARGET_COLLATION = "Latin1_General_100_CI_AS_SC_UTF8";
@@ -38,7 +37,7 @@ function deriveTestConnection(saConn: string): string {
 
 try {
   log("Connecting to master...");
-  const cn = await connect(SA_CONNECTION);
+  await using cn = await connect(SA_CONNECTION);
 
   // Check if database exists and its collation
   const existing = await cn.queryFirst<{
@@ -116,52 +115,46 @@ try {
     }
   }
 
-  await cn.disconnect();
-
   // Set up test tables in the test database
   const testConn = deriveTestConnection(SA_CONNECTION);
   log("Setting up test tables...");
-  const testCn = await connect(testConn);
+  await using testCn = await connect(testConn);
 
-  try {
-    const tableExists = await testCn.scalar<number>(
-      "SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'BinaryFiles' AND TABLE_SCHEMA = 'dbo'",
+  const tableExists = await testCn.scalar<number>(
+    "SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'BinaryFiles' AND TABLE_SCHEMA = 'dbo'",
+  ) ?? 0;
+
+  if (!tableExists) {
+    const hasFilestream = await testCn.scalar<number>(
+      "SELECT COUNT(*) FROM sys.filegroups WHERE type = 'FD'",
     ) ?? 0;
 
-    if (!tableExists) {
-      const hasFilestream = await testCn.scalar<number>(
-        "SELECT COUNT(*) FROM sys.filegroups WHERE type = 'FD'",
-      ) ?? 0;
-
-      if (hasFilestream) {
-        log("Creating FILESTREAM-enabled BinaryFiles table...");
-        await testCn.execute(`
-          CREATE TABLE dbo.BinaryFiles (
-            id UNIQUEIDENTIFIER ROWGUIDCOL NOT NULL DEFAULT NEWSEQUENTIALID(),
-            file_name NVARCHAR(255) NOT NULL,
-            file_data VARBINARY(MAX) FILESTREAM NULL,
-            created_at DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
-            CONSTRAINT PK_BinaryFiles PRIMARY KEY (id)
-          )
-        `);
-      } else {
-        log("Creating VARBINARY BinaryFiles table...");
-        await testCn.execute(`
-          CREATE TABLE dbo.BinaryFiles (
-            id UNIQUEIDENTIFIER ROWGUIDCOL NOT NULL DEFAULT NEWSEQUENTIALID(),
-            file_name NVARCHAR(255) NOT NULL,
-            file_data VARBINARY(MAX) NULL,
-            created_at DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
-            CONSTRAINT PK_BinaryFiles PRIMARY KEY (id)
-          )
-        `);
-      }
-      log("BinaryFiles table created.");
+    if (hasFilestream) {
+      log("Creating FILESTREAM-enabled BinaryFiles table...");
+      await testCn.execute(`
+        CREATE TABLE dbo.BinaryFiles (
+          id UNIQUEIDENTIFIER ROWGUIDCOL NOT NULL DEFAULT NEWSEQUENTIALID(),
+          file_name NVARCHAR(255) NOT NULL,
+          file_data VARBINARY(MAX) FILESTREAM NULL,
+          created_at DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+          CONSTRAINT PK_BinaryFiles PRIMARY KEY (id)
+        )
+      `);
     } else {
-      log("BinaryFiles table already exists.");
+      log("Creating VARBINARY BinaryFiles table...");
+      await testCn.execute(`
+        CREATE TABLE dbo.BinaryFiles (
+          id UNIQUEIDENTIFIER ROWGUIDCOL NOT NULL DEFAULT NEWSEQUENTIALID(),
+          file_name NVARCHAR(255) NOT NULL,
+          file_data VARBINARY(MAX) NULL,
+          created_at DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+          CONSTRAINT PK_BinaryFiles PRIMARY KEY (id)
+        )
+      `);
     }
-  } finally {
-    await testCn.disconnect();
+    log("BinaryFiles table created.");
+  } else {
+    log("BinaryFiles table already exists.");
   }
 
   // Output the test connection string to stdout (bash captures this)

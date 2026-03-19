@@ -2,7 +2,8 @@
 
 ## Prerequisites
 
-[Microsoft ODBC Driver 18 for SQL Server](https://learn.microsoft.com/en-us/sql/connect/odbc/download-odbc-driver-for-sql-server) must be installed on the target system:
+[Microsoft ODBC Driver 18 for SQL Server](https://learn.microsoft.com/en-us/sql/connect/odbc/download-odbc-driver-for-sql-server)
+must be installed on the target system:
 
 ```sh
 # Windows
@@ -33,9 +34,9 @@ bun add @tsdrivers/mssql koffi
 ```
 
 The `@tsdrivers/mssql` package auto-detects your runtime and uses the correct
-FFI adapter automatically. Deno uses its built-in `Deno.dlopen`; Node.js and
-Bun use [koffi](https://koffi.dev/) which provides nonblocking async FFI calls
-via worker threads.
+FFI adapter automatically. Deno uses its built-in `Deno.dlopen`; Node.js and Bun
+use [koffi](https://koffi.dev/) which provides nonblocking async FFI calls via
+worker threads.
 
 ## Native Library
 

@@ -6,8 +6,8 @@ require a small encoding step.
 
 ## Writing Binary Data
 
-Pass a `Uint8Array` with `type: "varbinary"`. **The type hint is required** — without
-it the value is treated as an NVARCHAR string:
+Pass a `Uint8Array` with `type: "varbinary"`. **The type hint is required** —
+without it the value is treated as an NVARCHAR string:
 
 ```ts
 const bytes = new Uint8Array([0x48, 0x65, 0x6c, 0x6c, 0x6f]); // "Hello"
@@ -99,13 +99,13 @@ All three runtimes support the global `atob()` / `btoa()` functions, so the
 The binary API is identical across all three runtimes. There are no
 runtime-specific code paths in the driver for binary data.
 
-| Feature | Deno | Node.js | Bun |
-|---|---|---|---|
-| `Uint8Array` input | ✅ | ✅ | ✅ |
-| `Buffer` input | via `node:buffer` | ✅ (global) | ✅ (global) |
-| `atob` / `btoa` globals | ✅ | ✅ (v16+) | ✅ |
-| `Buffer.from(b64, "base64")` | via `node:buffer` | ✅ | ✅ |
-| Output as base64 string | ✅ | ✅ | ✅ |
+| Feature                      | Deno              | Node.js     | Bun         |
+| ---------------------------- | ----------------- | ----------- | ----------- |
+| `Uint8Array` input           | ✅                | ✅          | ✅          |
+| `Buffer` input               | via `node:buffer` | ✅ (global) | ✅ (global) |
+| `atob` / `btoa` globals      | ✅                | ✅ (v16+)   | ✅          |
+| `Buffer.from(b64, "base64")` | via `node:buffer` | ✅          | ✅          |
+| Output as base64 string      | ✅                | ✅          | ✅          |
 
 ## Full Round-Trip Example
 
@@ -132,8 +132,8 @@ console.log(new TextDecoder().decode(roundTripped)); // "Hello, world! 🌍"
 
 ## Empty VARBINARY
 
-Empty `Uint8Array` values are supported — the driver automatically generates
-a `CAST(0x AS VARBINARY(MAX))` literal:
+Empty `Uint8Array` values are supported — the driver automatically generates a
+`CAST(0x AS VARBINARY(MAX))` literal:
 
 ```ts
 // ✅ Works — empty binary is handled correctly
@@ -147,11 +147,11 @@ await cn.execute("INSERT INTO T (data) VALUES (@data)", {
 Binary data is serialized through JSON (base64-encoded), which works well for
 BLOBs up to ~10 MB. For larger data, use streaming:
 
-| Approach | Platform | Best For |
-|---|---|---|
-| Standard query (in-memory) | All | Up to ~10 MB |
-| [Blob Streaming](./blob-streaming) | All | Large reads/writes via `Readable`/`Writable` streams |
-| [FILESTREAM](./filestream) | Windows only | Very large files with native file handle I/O |
+| Approach                           | Platform     | Best For                                             |
+| ---------------------------------- | ------------ | ---------------------------------------------------- |
+| Standard query (in-memory)         | All          | Up to ~10 MB                                         |
+| [Blob Streaming](./blob-streaming) | All          | Large reads/writes via `Readable`/`Writable` streams |
+| [FILESTREAM](./filestream)         | Windows only | Very large files with native file handle I/O         |
 
 See [Blob Streaming](./blob-streaming) for the full API — it provides
 `node:stream` and Web Standard stream interfaces that work identically to the

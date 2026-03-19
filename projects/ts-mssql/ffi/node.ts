@@ -10,6 +10,7 @@
  */
 
 import type { RuntimeFFI } from "../core/runtime.ts";
+import process from "node:process";
 
 // Lazily import koffi to avoid issues when type-checking without it installed.
 // deno-lint-ignore no-explicit-any

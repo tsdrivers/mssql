@@ -5,11 +5,15 @@
 
 import type { RuntimeFFI } from "./runtime.ts";
 import { INVALID_HANDLE } from "./runtime.ts";
-import type { CommandOptions, Params, ParamValue, StreamOptions } from "./types.ts";
+import type {
+  CommandOptions,
+  Params,
+  ParamValue,
+  StreamOptions,
+} from "./types.ts";
 import type { ExecResult } from "./exec_result.ts";
 import { MssqlConnection } from "./connection.ts";
-import { QueryStream } from "./stream.ts";
-import { BulkInsertBuilder } from "./bulk.ts";
+import type { QueryStream } from "./stream.ts";
 
 /**
  * A connection pool for SQL Server. Acquire connections or use
@@ -132,7 +136,7 @@ export class MssqlPool implements Disposable, AsyncDisposable {
       const stream = await cn.queryStream<T>(sql, params, opts);
       return new PooledQueryStream(stream, cn);
     } catch (err) {
-      await cn.disconnect();
+      await cn.close();
       throw err;
     }
   }
@@ -171,8 +175,9 @@ export class MssqlPool implements Disposable, AsyncDisposable {
     this.close();
   }
 
-  async [Symbol.asyncDispose](): Promise<void> {
+  [Symbol.asyncDispose](): Promise<void> {
     this.close();
+    return Promise.resolve();
   }
 
   #ensureOpen(): void {

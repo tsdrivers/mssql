@@ -40,7 +40,9 @@ describe("queries", () => {
     const name = "Bob";
     const age = 25;
     const result = await cn
-      .sql<{ name: string; age: number }>`SELECT ${name} AS name, ${age} AS age`;
+      .sql<
+      { name: string; age: number }
+    >`SELECT ${name} AS name, ${age} AS age`;
     expect(result.length).toBe(1);
     expect(result[0].name).toBe("Bob");
     expect(result[0].age).toBe(25);

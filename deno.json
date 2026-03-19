@@ -1,5 +1,10 @@
 {
   "nodeModulesDir": "auto",
+  "lint": {
+    "rules": {
+      "exclude": ["no-import-prefix", "no-unversioned-import"]
+    }
+  },
   "workspace": [
     "projects/ts-mssql"
   ],

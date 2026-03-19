@@ -45,11 +45,9 @@ Deno.test("MssqlPool.connect - acquires and returns connection", async () => {
       return Promise.resolve(5n);
     },
   });
-  const pool = new MssqlPool(1n, ffi);
-  const cn = await pool.connect();
+  using _pool = new MssqlPool(1n, ffi);
+  await using _cn = await _pool.connect();
   assertEquals(acquired, true);
-  await cn.disconnect();
-  pool.close();
 });
 
 Deno.test("MssqlPool.connect - throws on failed acquire", async () => {

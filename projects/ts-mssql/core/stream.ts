@@ -19,7 +19,8 @@ import type { RuntimeFFI } from "./runtime.ts";
  * const all = await stream.toArray();
  * ```
  */
-export class QueryStream<T = Record<string, unknown>> implements AsyncIterable<T>, Disposable, AsyncDisposable {
+export class QueryStream<T = Record<string, unknown>>
+  implements AsyncIterable<T>, Disposable, AsyncDisposable {
   #cursorId: bigint;
   #ffi: RuntimeFFI;
   #done = false;
@@ -100,6 +101,7 @@ export class QueryStream<T = Record<string, unknown>> implements AsyncIterable<T
 
   /** Return a standard ReadableStream. */
   toReadableStream(): ReadableStream<T> {
+    // deno-lint-ignore no-this-alias
     const self = this;
     return new ReadableStream<T>({
       async pull(controller) {
@@ -112,7 +114,9 @@ export class QueryStream<T = Record<string, unknown>> implements AsyncIterable<T
           controller.enqueue(row);
         }
       },
-      cancel() { self.close(); },
+      cancel() {
+        self.close();
+      },
     });
   }
 
@@ -123,7 +127,9 @@ export class QueryStream<T = Record<string, unknown>> implements AsyncIterable<T
       const cbs = this.#onCloseCallbacks;
       this.#onCloseCallbacks = [];
       for (const cb of cbs) {
-        try { cb(); } catch { /* best-effort */ }
+        try {
+          cb();
+        } catch { /* best-effort */ }
       }
     }
   }
@@ -132,8 +138,9 @@ export class QueryStream<T = Record<string, unknown>> implements AsyncIterable<T
     this.close();
   }
 
-  async [Symbol.asyncDispose](): Promise<void> {
+  [Symbol.asyncDispose](): Promise<void> {
     this.close();
+    return Promise.resolve();
   }
 
   async #fetchNext(): Promise<T | null> {

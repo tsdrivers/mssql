@@ -1,12 +1,13 @@
 # Streaming Queries
 
-For large result sets, use streaming to process rows one at a time without loading everything into memory.
+For large result sets, use streaming to process rows one at a time without
+loading everything into memory.
 
 ## Basic Streaming
 
 ```ts
-const stream = await cn.queryStream<{ id: number; name: string }>(
-  "SELECT id, name FROM LargeTable"
+await using stream = await cn.queryStream<{ id: number; name: string }>(
+  "SELECT id, name FROM LargeTable",
 );
 
 for await (const row of stream) {
@@ -19,9 +20,9 @@ for await (const row of stream) {
 When using a pool, the connection is automatically acquired and released:
 
 ```ts
-const stream = await pool.queryStream<{ id: number }>(
+await using stream = await pool.queryStream<{ id: number }>(
   "SELECT id FROM LargeTable WHERE status = @status",
-  { status: "active" }
+  { status: "active" },
 );
 
 for await (const row of stream) {
@@ -35,7 +36,9 @@ for await (const row of stream) {
 You can break out of the stream early:
 
 ```ts
-const stream = await cn.queryStream<{ id: number }>("SELECT id FROM BigTable");
+await using stream = await cn.queryStream<{ id: number }>(
+  "SELECT id FROM BigTable",
+);
 
 for await (const row of stream) {
   if (row.id > 100) break;
@@ -52,10 +55,10 @@ for await (const row of stream) {
 const rows = await stream.toArray();
 
 // Transform rows
-const names = await stream.map(row => row.name);
+const names = await stream.map((row) => row.name);
 
 // Filter rows
-const active = await stream.filter(row => row.active);
+const active = await stream.filter((row) => row.active);
 
 // Reduce without collecting
 const total = await stream.reduce((sum, row) => sum + row.amount, 0);

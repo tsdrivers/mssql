@@ -24,9 +24,9 @@ import { Readable, Writable } from "node:stream";
 
 /** Identifies the VARBINARY(MAX) column and row to stream. */
 export interface BlobTarget {
-  /** Table name (bracket-escaped automatically). */
+  /** Table name (use bracket escaping for special characters, e.g. `"[dbo].[MyTable]"`). */
   table: string;
-  /** VARBINARY(MAX) column name (bracket-escaped automatically). */
+  /** VARBINARY(MAX) column name (use bracket escaping if needed). */
   column: string;
   /** WHERE clause identifying the row (e.g. `"id = @id"`). */
   where: string;
@@ -43,28 +43,6 @@ interface TransactionRef {
 }
 
 // ── Helpers ─────────────────────────────────────────────────────
-
-/**
- * Ensure a SQL identifier is bracket-escaped. Supports multi-part names
- * like `dbo.MyTable` or `MyDB.dbo.MyTable`.
- *
- * If the name already contains brackets (e.g. `[dbo].[MyTable]` or
- * `[My.Table]`), it is returned as-is — SQL Server's bracket syntax is
- * the native escaping mechanism and handles all special characters
- * including literal dots.
- *
- * Unbracketed names are split on `.` and each part is bracket-escaped.
- */
-function bracketEscape(name: string): string {
-  // Already bracketed — leave as-is (handles [My.Table] correctly)
-  if (name.includes("[")) return name;
-
-  // Unbracketed — split on dots and escape each part
-  return name
-    .split(".")
-    .map((part) => `[${part.replace(/\]/g, "]]")}]`)
-    .join(".");
-}
 
 function fromBase64(b64: string): Uint8Array {
   const s = atob(b64);
@@ -125,8 +103,8 @@ export class BlobReadable extends Readable {
     super();
     this.#cn = cn;
     this.#tx = tx;
-    this.#table = bracketEscape(target.table);
-    this.#column = bracketEscape(target.column);
+    this.#table = target.table;
+    this.#column = target.column;
     this.#where = target.where;
     this.#params = target.params ?? {};
     this.#chunkSize = target.chunkSize ?? DEFAULT_CHUNK_SIZE;
@@ -189,8 +167,8 @@ export class BlobWritable extends Writable {
     super();
     this.#cn = cn;
     this.#tx = tx;
-    this.#table = bracketEscape(target.table);
-    this.#column = bracketEscape(target.column);
+    this.#table = target.table;
+    this.#column = target.column;
     this.#where = target.where;
     this.#params = target.params ?? {};
   }
@@ -217,6 +195,42 @@ export class BlobWritable extends Writable {
   }
 }
 
+// ── Disposable Web Standard stream wrappers ─────────────────────
+
+/**
+ * A `ReadableStream<Uint8Array>` that supports `using` / `await using`.
+ *
+ * - `Symbol.dispose` calls `cancel()` synchronously (fire-and-forget).
+ * - `Symbol.asyncDispose` awaits `cancel()`.
+ */
+export class DisposableReadableStream extends ReadableStream<Uint8Array>
+  implements Disposable, AsyncDisposable {
+  [Symbol.dispose](): void {
+    this.cancel();
+  }
+
+  async [Symbol.asyncDispose](): Promise<void> {
+    await this.cancel();
+  }
+}
+
+/**
+ * A `WritableStream<Uint8Array>` that supports `using` / `await using`.
+ *
+ * - `Symbol.dispose` calls `close()` synchronously (fire-and-forget).
+ * - `Symbol.asyncDispose` awaits `close()`.
+ */
+export class DisposableWritableStream extends WritableStream<Uint8Array>
+  implements Disposable, AsyncDisposable {
+  [Symbol.dispose](): void {
+    this.close().catch(() => {});
+  }
+
+  async [Symbol.asyncDispose](): Promise<void> {
+    await this.close();
+  }
+}
+
 // ── Web Standard streams ────────────────────────────────────────
 
 /**
@@ -228,15 +242,15 @@ export function createBlobReadableStream(
   cn: BlobQueryable,
   tx: TransactionRef,
   target: BlobTarget,
-): ReadableStream<Uint8Array> {
-  const table = bracketEscape(target.table);
-  const column = bracketEscape(target.column);
+): DisposableReadableStream {
+  const table = target.table;
+  const column = target.column;
   const where = target.where;
   const params = target.params ?? {};
   const chunkSize = target.chunkSize ?? DEFAULT_CHUNK_SIZE;
   let offset = 1;
 
-  return new ReadableStream({
+  return new DisposableReadableStream({
     async pull(controller) {
       try {
         tx._ensureActive();
@@ -278,13 +292,13 @@ export function createBlobWritableStream(
   cn: BlobQueryable,
   tx: TransactionRef,
   target: BlobTarget,
-): WritableStream<Uint8Array> {
-  const table = bracketEscape(target.table);
-  const column = bracketEscape(target.column);
+): DisposableWritableStream {
+  const table = target.table;
+  const column = target.column;
   const where = target.where;
   const params = target.params ?? {};
 
-  return new WritableStream({
+  return new DisposableWritableStream({
     async write(chunk) {
       tx._ensureActive();
       const b64 = toBase64(chunk);

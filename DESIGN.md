@@ -36,8 +36,8 @@ and dynamically imports the correct adapter:
   `createPool()`/`connect()`)
 - **Node.js:** Uses `koffi` for FFI with nonblocking async calls via worker
   threads. Lazy initialization on first use
-- **Bun:** Also uses `koffi` (Bun's native `bun:ffi` lacks async support).
-  Lazy initialization on first use
+- **Bun:** Also uses `koffi` (Bun's native `bun:ffi` lacks async support). Lazy
+  initialization on first use
 - A shared `Promise` ensures the backend is resolved only once; concurrent
   callers await the same promise
 
@@ -60,7 +60,7 @@ and dynamically imports the correct adapter:
 import * as mssql from "@tsdrivers/mssql";
 
 // Pool
-const pool = await mssql.createPool(connectionString);
+await using pool = await mssql.createPool(connectionString);
 const users = await pool.query<User>("SELECT ...", { age: 25 });
 
 // Connection
@@ -78,7 +78,7 @@ cn.sql<T>`SELECT ... WHERE x = ${val}`   → T[]
 cn.sqlWith(opts)<T>`...`                  → T[]
 
 // Streaming
-const stream = await cn.queryStream<T>(sql, params?, opts?);
+await using stream = await cn.queryStream<T>(sql, params?, opts?);
 for await (const row of stream) { ... }
 await stream.toArray();
 await stream.map(fn);
@@ -237,11 +237,11 @@ matching the current execution environment.
 
 ## Platform Dependencies
 
-| Feature                                   |                        Requirement                         |
-| ----------------------------------------- | :--------------------------------------------------------: |
-| Core (queries, pool, tx, bulk, streaming) | Microsoft ODBC Driver 18 for SQL Server                    |
-| Windows Auth (SSPI)                       | ODBC Driver 18 (automatic on Windows, Kerberos on Linux)   |
-| FILESTREAM                                | ODBC Driver 18 + Windows only                              |
+| Feature                                   |                       Requirement                        |
+| ----------------------------------------- | :------------------------------------------------------: |
+| Core (queries, pool, tx, bulk, streaming) |         Microsoft ODBC Driver 18 for SQL Server          |
+| Windows Auth (SSPI)                       | ODBC Driver 18 (automatic on Windows, Kerberos on Linux) |
+| FILESTREAM                                |              ODBC Driver 18 + Windows only               |
 
 ## CI/CD
 

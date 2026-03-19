@@ -9,6 +9,7 @@ import { Duplex, Readable, Writable } from "node:stream";
 import type { RuntimeFFI } from "./runtime.ts";
 import { INVALID_HANDLE } from "./runtime.ts";
 import type { FilestreamMode } from "./types.ts";
+import { DisposableReadableStream, DisposableWritableStream } from "./blob.ts";
 
 /**
  * Internal handle to a SQL Server FILESTREAM blob. Windows only.
@@ -72,6 +73,7 @@ export class FilestreamHandle implements AsyncDisposable {
   }
 
   /** Read up to maxBytes. Omit for entire blob. */
+  // deno-lint-ignore require-await
   async read(maxBytes?: number): Promise<Uint8Array> {
     this.#ensureOpen();
     const ptr = this.#ffi.filestreamRead(this.#fsId, BigInt(maxBytes ?? 0));
@@ -85,6 +87,7 @@ export class FilestreamHandle implements AsyncDisposable {
   }
 
   /** Write data, returning bytes written. */
+  // deno-lint-ignore require-await
   async write(data: Uint8Array): Promise<number> {
     this.#ensureOpen();
     const b64 = btoa(String.fromCharCode(...data));
@@ -96,8 +99,8 @@ export class FilestreamHandle implements AsyncDisposable {
   }
 
   /** Create a Web ReadableStream from this FILESTREAM handle. */
-  toReadableStream(chunkSize = 65536): ReadableStream<Uint8Array> {
-    return new ReadableStream({
+  toReadableStream(chunkSize = 65536): DisposableReadableStream {
+    return new DisposableReadableStream({
       pull: async (controller) => {
         try {
           const chunk = await this.read(chunkSize);
@@ -119,8 +122,8 @@ export class FilestreamHandle implements AsyncDisposable {
   }
 
   /** Create a Web WritableStream to this FILESTREAM handle. */
-  toWritableStream(): WritableStream<Uint8Array> {
-    return new WritableStream({
+  toWritableStream(): DisposableWritableStream {
+    return new DisposableWritableStream({
       write: async (chunk) => {
         await this.write(chunk);
       },
@@ -140,8 +143,9 @@ export class FilestreamHandle implements AsyncDisposable {
     }
   }
 
-  async [Symbol.asyncDispose](): Promise<void> {
+  [Symbol.asyncDispose](): Promise<void> {
     this.close();
+    return Promise.resolve();
   }
 
   #ensureOpen(): void {
@@ -173,7 +177,9 @@ export class FilestreamReadable extends Readable {
         if (chunk.length === 0) this.push(null);
         else this.push(chunk);
       })
-      .catch((err) => this.destroy(err instanceof Error ? err : new Error(String(err))));
+      .catch((err) =>
+        this.destroy(err instanceof Error ? err : new Error(String(err)))
+      );
   }
 
   override _destroy(
@@ -207,7 +213,9 @@ export class FilestreamWritable extends Writable {
     this.#handle
       .write(data)
       .then(() => callback())
-      .catch((err) => callback(err instanceof Error ? err : new Error(String(err))));
+      .catch((err) =>
+        callback(err instanceof Error ? err : new Error(String(err)))
+      );
   }
 
   override _destroy(
@@ -241,7 +249,9 @@ export class FilestreamDuplex extends Duplex {
         if (chunk.length === 0) this.push(null);
         else this.push(chunk);
       })
-      .catch((err) => this.destroy(err instanceof Error ? err : new Error(String(err))));
+      .catch((err) =>
+        this.destroy(err instanceof Error ? err : new Error(String(err)))
+      );
   }
 
   override _write(
@@ -253,7 +263,9 @@ export class FilestreamDuplex extends Duplex {
     this.#handle
       .write(data)
       .then(() => callback())
-      .catch((err) => callback(err instanceof Error ? err : new Error(String(err))));
+      .catch((err) =>
+        callback(err instanceof Error ? err : new Error(String(err)))
+      );
   }
 
   override _destroy(
@@ -267,6 +279,6 @@ export class FilestreamDuplex extends Duplex {
 
 /** Return type for `openWebstream()` in "readwrite" mode. */
 export interface FilestreamWebResult {
-  readable: ReadableStream<Uint8Array>;
-  writable: WritableStream<Uint8Array>;
+  readable: DisposableReadableStream;
+  writable: DisposableWritableStream;
 }

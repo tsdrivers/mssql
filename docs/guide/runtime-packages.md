@@ -21,8 +21,8 @@ FFI initialization starts **eagerly at module evaluation time**. Since Deno's
 
 ### Node.js
 
-Uses [koffi](https://koffi.dev) for FFI binding with nonblocking async calls
-via worker threads. Install alongside the package:
+Uses [koffi](https://koffi.dev) for FFI binding with nonblocking async calls via
+worker threads. Install alongside the package:
 
 ```sh
 npm install @tsdrivers/mssql koffi

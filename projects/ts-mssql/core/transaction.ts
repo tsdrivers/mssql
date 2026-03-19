@@ -59,7 +59,7 @@ export class Transaction implements Disposable, AsyncDisposable {
   }
 
   /** @internal Dispose this transaction (close streams, rollback if active). */
-  async _dispose(): Promise<void> {
+  _dispose(): Promise<void> {
     return this[Symbol.asyncDispose]();
   }
 
@@ -78,7 +78,9 @@ export class Transaction implements Disposable, AsyncDisposable {
     const streams = [...this.#streams];
     this.#streams.clear();
     for (const s of streams) {
-      try { s.close(); } catch { /* best-effort */ }
+      try {
+        s.close();
+      } catch { /* best-effort */ }
     }
   }
 

@@ -176,7 +176,7 @@ function parseServerValue(
   raw: string,
 ): { host: string; port: number | null; instance: string | null } {
   // Strip "tcp:" prefix
-  let s = raw.replace(/^tcp:/i, "");
+  const s = raw.replace(/^tcp:/i, "");
 
   // host\instance
   const backslash = s.indexOf("\\");

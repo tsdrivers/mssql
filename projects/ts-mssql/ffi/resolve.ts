@@ -79,8 +79,7 @@ function getDenoResolutionContext(): ResolutionContext {
     },
     cwd: () => D.cwd(),
     homeDir: () => D.env.get("HOME") ?? D.env.get("USERPROFILE") ?? "",
-    entryPoint: () =>
-      D.mainModule ? new URL(D.mainModule).pathname : undefined,
+    entryPoint: () => D.mainModule ? new URL(D.mainModule).pathname : undefined,
     version: VERSION,
     info,
     sep: info.os === "windows" ? "\\" : "/",
@@ -175,14 +174,13 @@ const _runtime = detectRuntime();
 // Deno's dlopen and library resolution are synchronous, so the
 // only async step is the dynamic import() of ./deno.ts.
 // By the time user code calls createPool/connect, the FFI is ready.
-let _ffiPromise: Promise<RuntimeFFI> | null =
-  _runtime === "deno"
-    ? (async () => {
-      const ctx = getDenoResolutionContext();
-      const libPath = resolveLibraryPath(ctx);
-      return await createRuntimeFFI("deno", libPath);
-    })()
-    : null;
+let _ffiPromise: Promise<RuntimeFFI> | null = _runtime === "deno"
+  ? (async () => {
+    const ctx = getDenoResolutionContext();
+    const libPath = resolveLibraryPath(ctx);
+    return await createRuntimeFFI("deno", libPath);
+  })()
+  : null;
 
 /**
  * Get or initialize the FFI singleton.

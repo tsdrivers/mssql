@@ -29,8 +29,15 @@ import {
 } from "./filestream.ts";
 import type { FilestreamWebResult } from "./filestream.ts";
 import type { BlobTarget } from "./blob.ts";
-import { BlobReadable, BlobWritable, createBlobReadableStream, createBlobWritableStream } from "./blob.ts";
-import type { Readable, Writable, Duplex } from "node:stream";
+import {
+  BlobReadable,
+  BlobWritable,
+  createBlobReadableStream,
+  createBlobWritableStream,
+  type DisposableReadableStream,
+  type DisposableWritableStream,
+} from "./blob.ts";
+import type { Duplex, Readable, Writable } from "node:stream";
 
 /**
  * A single connection to SQL Server.
@@ -277,11 +284,6 @@ export class MssqlConnection implements Disposable, AsyncDisposable {
     }
   }
 
-  /** Alias for {@link close}. */
-  async disconnect(): Promise<void> {
-    await this.close();
-  }
-
   [Symbol.dispose](): void {
     if (!this.#disposed) {
       this.#disposed = true;
@@ -328,7 +330,9 @@ export class MssqlConnection implements Disposable, AsyncDisposable {
     const streams = [...this.#streams];
     this.#streams.clear();
     for (const s of streams) {
-      try { s.close(); } catch { /* best-effort */ }
+      try {
+        s.close();
+      } catch { /* best-effort */ }
     }
 
     return hadActiveTx;
@@ -398,14 +402,26 @@ export class FilestreamAccessor {
   }
 
   /** Open as Web Standard ReadableStream, WritableStream, or both. Windows only. */
-  openWeb(path: string, ctx: Uint8Array | string, mode: "read"): ReadableStream<Uint8Array>;
-  openWeb(path: string, ctx: Uint8Array | string, mode: "write"): WritableStream<Uint8Array>;
-  openWeb(path: string, ctx: Uint8Array | string, mode: "readwrite"): FilestreamWebResult;
+  openWeb(
+    path: string,
+    ctx: Uint8Array | string,
+    mode: "read",
+  ): DisposableReadableStream;
+  openWeb(
+    path: string,
+    ctx: Uint8Array | string,
+    mode: "write",
+  ): DisposableWritableStream;
+  openWeb(
+    path: string,
+    ctx: Uint8Array | string,
+    mode: "readwrite",
+  ): FilestreamWebResult;
   openWeb(
     path: string,
     ctx: Uint8Array | string,
     mode: FilestreamMode,
-  ): ReadableStream<Uint8Array> | WritableStream<Uint8Array> | FilestreamWebResult {
+  ): DisposableReadableStream | DisposableWritableStream | FilestreamWebResult {
     const handle = FilestreamHandle._open(this.#ffi, path, ctx, mode);
     switch (mode) {
       case "read":
@@ -440,11 +456,13 @@ export class FilestreamAccessor {
       const dbName = database?.replace(/^\[|\]$/g, "");
       const fgCount = dbName
         ? await this.#cn.scalar<number>(
-            `SELECT COUNT(*) FROM [${dbName.replace(/\]/g, "]]")}].sys.filegroups WHERE type = 'FD'`,
-          )
+          `SELECT COUNT(*) FROM [${
+            dbName.replace(/\]/g, "]]")
+          }].sys.filegroups WHERE type = 'FD'`,
+        )
         : await this.#cn.scalar<number>(
-            "SELECT COUNT(*) FROM sys.filegroups WHERE type = 'FD'",
-          );
+          "SELECT COUNT(*) FROM sys.filegroups WHERE type = 'FD'",
+        );
       return (fgCount ?? 0) > 0;
     } catch {
       return false;
@@ -501,13 +519,13 @@ export class BlobWebstreamAccessor {
   }
 
   /** Read a VARBINARY(MAX) column as a Web `ReadableStream`. */
-  read(tx: Transaction, target: BlobTarget): ReadableStream<Uint8Array> {
+  read(tx: Transaction, target: BlobTarget): DisposableReadableStream {
     tx._ensureActive();
     return createBlobReadableStream(this.#cn, tx, target);
   }
 
   /** Write to a VARBINARY(MAX) column as a Web `WritableStream`. */
-  write(tx: Transaction, target: BlobTarget): WritableStream<Uint8Array> {
+  write(tx: Transaction, target: BlobTarget): DisposableWritableStream {
     tx._ensureActive();
     return createBlobWritableStream(this.#cn, tx, target);
   }

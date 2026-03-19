@@ -162,10 +162,9 @@ Deno.test({
     await using cn = await mssql.connect(env.connectionString);
 
     // Skip if BinaryFiles table doesn't exist (db-setup not run)
-    const tableExists =
-      (await cn.scalar<number>(
-        "SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'BinaryFiles'",
-      )) ?? 0;
+    const tableExists = (await cn.scalar<number>(
+      "SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'BinaryFiles'",
+    )) ?? 0;
     if (!tableExists) return;
 
     const testName = `test_vb_${Date.now()}.bin`;
@@ -341,8 +340,10 @@ Deno.test({
         await using tx = await cn.beginTransaction();
         const source = createReadStream(tmpInput);
         const writable = cn.blob.filestream.write(tx, {
-          table: "#blob_pipeline", column: "data",
-          where: "id = 1", chunkSize: 64,
+          table: "#blob_pipeline",
+          column: "data",
+          where: "id = 1",
+          chunkSize: 64,
         });
         await pipeline(source, writable);
         await tx.commit();
@@ -352,8 +353,10 @@ Deno.test({
       {
         await using tx = await cn.beginTransaction();
         const readable = cn.blob.filestream.read(tx, {
-          table: "#blob_pipeline", column: "data",
-          where: "id = 1", chunkSize: 64,
+          table: "#blob_pipeline",
+          column: "data",
+          where: "id = 1",
+          chunkSize: 64,
         });
         const dest = createWriteStream(tmpOutput);
         await pipeline(readable, dest);
@@ -393,7 +396,9 @@ Deno.test({
         await using tx = await cn.beginTransaction();
         const inFile = await Deno.open(tmpInput, { read: true });
         const writable = cn.blob.webstream.write(tx, {
-          table: "#blob_webpipe", column: "data", where: "id = 1",
+          table: "#blob_webpipe",
+          column: "data",
+          where: "id = 1",
         });
         await inFile.readable.pipeTo(writable);
         await tx.commit();
@@ -403,7 +408,9 @@ Deno.test({
       {
         await using tx = await cn.beginTransaction();
         const rs = cn.blob.webstream.read(tx, {
-          table: "#blob_webpipe", column: "data", where: "id = 1",
+          table: "#blob_webpipe",
+          column: "data",
+          where: "id = 1",
         });
         const outFile = await Deno.open(tmpOutput, {
           write: true,

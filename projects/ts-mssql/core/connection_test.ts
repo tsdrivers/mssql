@@ -131,11 +131,10 @@ Deno.test("MssqlConnection.query - returns parsed rows", async () => {
     query: () =>
       Promise.resolve('[{"id":1,"name":"Alice"},{"id":2,"name":"Bob"}]'),
   });
-  const cn = new MssqlConnection(1n, ffi);
+  await using cn = new MssqlConnection(1n, ffi);
   const rows = await cn.query("SELECT * FROM Users");
   assertEquals(rows.length, 2);
   assertEquals((rows[0] as Record<string, unknown>).name, "Alice");
-  await cn.disconnect();
 });
 
 Deno.test("MssqlConnection.query - throws on null result", async () => {
@@ -143,89 +142,80 @@ Deno.test("MssqlConnection.query - throws on null result", async () => {
     query: () => Promise.resolve(null),
     lastError: () => "Syntax error near SELECT",
   });
-  const cn = new MssqlConnection(1n, ffi);
+  await using cn = new MssqlConnection(1n, ffi);
   await assertRejects(
     () => cn.query("BAD SQL"),
     Error,
     "Syntax error near SELECT",
   );
-  await cn.disconnect();
 });
 
 Deno.test("MssqlConnection.queryFirst - returns first row", async () => {
   const ffi = createMockFFI({
     query: () => Promise.resolve('[{"id":1}]'),
   });
-  const cn = new MssqlConnection(1n, ffi);
+  await using cn = new MssqlConnection(1n, ffi);
   const row = await cn.queryFirst("SELECT TOP 1 * FROM T");
   assertEquals((row as Record<string, unknown>).id, 1);
-  await cn.disconnect();
 });
 
 Deno.test("MssqlConnection.queryFirst - returns undefined for empty", async () => {
   const ffi = createMockFFI({ query: () => Promise.resolve("[]") });
-  const cn = new MssqlConnection(1n, ffi);
+  await using cn = new MssqlConnection(1n, ffi);
   const row = await cn.queryFirst("SELECT * FROM T WHERE 1=0");
   assertEquals(row, undefined);
-  await cn.disconnect();
 });
 
 Deno.test("MssqlConnection.querySingle - returns single row", async () => {
   const ffi = createMockFFI({ query: () => Promise.resolve('[{"id":1}]') });
-  const cn = new MssqlConnection(1n, ffi);
+  await using cn = new MssqlConnection(1n, ffi);
   const row = await cn.querySingle("SELECT * FROM T WHERE id = 1");
   assertEquals((row as Record<string, unknown>).id, 1);
-  await cn.disconnect();
 });
 
 Deno.test("MssqlConnection.querySingle - throws for zero rows", async () => {
   const ffi = createMockFFI({ query: () => Promise.resolve("[]") });
-  const cn = new MssqlConnection(1n, ffi);
+  await using cn = new MssqlConnection(1n, ffi);
   await assertRejects(
     () => cn.querySingle("SELECT * FROM T WHERE 1=0"),
     Error,
     "Expected exactly 1 row, got 0",
   );
-  await cn.disconnect();
 });
 
 Deno.test("MssqlConnection.querySingle - throws for multiple rows", async () => {
   const ffi = createMockFFI({
     query: () => Promise.resolve('[{"id":1},{"id":2}]'),
   });
-  const cn = new MssqlConnection(1n, ffi);
+  await using cn = new MssqlConnection(1n, ffi);
   await assertRejects(
     () => cn.querySingle("SELECT * FROM T"),
     Error,
     "Expected exactly 1 row, got 2",
   );
-  await cn.disconnect();
 });
 
 Deno.test("MssqlConnection.scalar - returns first column value", async () => {
   const ffi = createMockFFI({ query: () => Promise.resolve('[{"count":42}]') });
-  const cn = new MssqlConnection(1n, ffi);
+  await using cn = new MssqlConnection(1n, ffi);
   const val = await cn.scalar<number>("SELECT COUNT(*) as count FROM T");
   assertEquals(val, 42);
-  await cn.disconnect();
 });
 
 Deno.test("MssqlConnection.scalar - returns undefined for empty", async () => {
   const ffi = createMockFFI({ query: () => Promise.resolve("[]") });
-  const cn = new MssqlConnection(1n, ffi);
+  await using cn = new MssqlConnection(1n, ffi);
   const val = await cn.scalar("SELECT 1 WHERE 1=0");
   assertEquals(val, undefined);
-  await cn.disconnect();
 });
 
 Deno.test("MssqlConnection.execute - returns rowsAffected", async () => {
   const ffi = createMockFFI({
     executeNonquery: () => Promise.resolve('{"rowsAffected":5}'),
   });
-  const cn = new MssqlConnection(1n, ffi);
+  await using cn = new MssqlConnection(1n, ffi);
   const count = await cn.execute("DELETE FROM T WHERE active = 0");
   assertEquals(count, 5);
-  await cn.disconnect();
 });
 
 Deno.test("MssqlConnection.sql - tagged template", async () => {
@@ -236,7 +226,7 @@ Deno.test("MssqlConnection.sql - tagged template", async () => {
       return Promise.resolve("[]");
     },
   });
-  const cn = new MssqlConnection(1n, ffi);
+  await using cn = new MssqlConnection(1n, ffi);
   await cn.sql`SELECT * FROM Users WHERE name = ${"Alice"} AND age = ${30}`;
   const cmd = JSON.parse(capturedJson);
   assertEquals(cmd.sql, "SELECT * FROM Users WHERE name = @p0 AND age = @p1");
@@ -244,13 +234,12 @@ Deno.test("MssqlConnection.sql - tagged template", async () => {
   assertEquals(cmd.params[0].value, "Alice");
   assertEquals(cmd.params[1].name, "p1");
   assertEquals(cmd.params[1].value, 30);
-  await cn.disconnect();
 });
 
 Deno.test("MssqlConnection - throws when closed", async () => {
   const ffi = createMockFFI();
   const cn = new MssqlConnection(1n, ffi);
-  await cn.disconnect();
+  await cn.close();
   await assertRejects(
     () => cn.query("SELECT 1"),
     Error,
@@ -258,7 +247,7 @@ Deno.test("MssqlConnection - throws when closed", async () => {
   );
 });
 
-Deno.test("MssqlConnection - disconnect calls ffi.disconnect", async () => {
+Deno.test("MssqlConnection.close - calls ffi.disconnect", async () => {
   let disconnected = false;
   const ffi = createMockFFI({
     disconnect: () => {
@@ -266,11 +255,11 @@ Deno.test("MssqlConnection - disconnect calls ffi.disconnect", async () => {
     },
   });
   const cn = new MssqlConnection(1n, ffi);
-  await cn.disconnect();
+  await cn.close();
   assertEquals(disconnected, true);
 });
 
-Deno.test("MssqlConnection - disconnect on pooled connection calls ffi.disconnect (not poolRelease)", async () => {
+Deno.test("MssqlConnection.close - on pooled connection calls ffi.disconnect (not poolRelease)", async () => {
   let disconnectCalled = false;
   let poolReleaseCalled = false;
   const ffi = createMockFFI({
@@ -282,7 +271,7 @@ Deno.test("MssqlConnection - disconnect on pooled connection calls ffi.disconnec
     },
   });
   const cn = new MssqlConnection(1n, ffi, 10n);
-  await cn.disconnect();
+  await cn.close();
   assertEquals(disconnectCalled, true);
   assertEquals(poolReleaseCalled, false);
 });
@@ -305,7 +294,7 @@ Deno.test("MssqlConnection - asyncDispose on pooled connection calls poolRelease
   assertEquals(disconnectCalled, false);
 });
 
-Deno.test("MssqlConnection - asyncDispose on standalone calls disconnect", async () => {
+Deno.test("MssqlConnection - asyncDispose on standalone calls close", async () => {
   let disconnected = false;
   const ffi = createMockFFI({
     disconnect: () => {
@@ -320,7 +309,7 @@ Deno.test("MssqlConnection - asyncDispose on standalone calls disconnect", async
 
 // ── Cascading cleanup tests ──────────────────────────────────
 
-Deno.test("MssqlConnection.disconnect - closes tracked streams", async () => {
+Deno.test("MssqlConnection.close - closes tracked streams", async () => {
   let streamCloseCount = 0;
   const ffi = createMockFFI({
     queryStream: () => Promise.resolve(10n),
@@ -331,11 +320,11 @@ Deno.test("MssqlConnection.disconnect - closes tracked streams", async () => {
   const cn = new MssqlConnection(1n, ffi);
   await cn.queryStream("SELECT 1");
   await cn.queryStream("SELECT 2");
-  await cn.disconnect();
+  await cn.close();
   assertEquals(streamCloseCount, 2);
 });
 
-Deno.test("MssqlConnection.disconnect - disposes tracked transactions (rollback)", async () => {
+Deno.test("MssqlConnection.close - disposes tracked transactions (rollback)", async () => {
   let rollbackCount = 0;
   const ffi = createMockFFI({
     beginTransaction: () => Promise.resolve(null),
@@ -347,11 +336,11 @@ Deno.test("MssqlConnection.disconnect - disposes tracked transactions (rollback)
   const cn = new MssqlConnection(1n, ffi);
   await cn.beginTransaction();
   await cn.beginTransaction();
-  await cn.disconnect();
+  await cn.close();
   assertEquals(rollbackCount, 2);
 });
 
-Deno.test("MssqlConnection.disconnect - transaction dispose closes its streams before rollback", async () => {
+Deno.test("MssqlConnection.close - transaction dispose closes its streams before rollback", async () => {
   const order: string[] = [];
   const ffi = createMockFFI({
     queryStream: () => Promise.resolve(10n),
@@ -367,25 +356,25 @@ Deno.test("MssqlConnection.disconnect - transaction dispose closes its streams b
   const cn = new MssqlConnection(1n, ffi);
   const tx = await cn.beginTransaction();
   await cn.queryStream("SELECT 1", undefined, { transaction: tx });
-  await cn.disconnect();
+  await cn.close();
   assertEquals(order[0], "streamClose");
   assertEquals(order[1], "rollback");
 });
 
-Deno.test("MssqlConnection.disconnect - idempotent (double call safe)", async () => {
-  let disconnectCount = 0;
+Deno.test("MssqlConnection.close - idempotent (double call safe)", async () => {
+  let closeCount = 0;
   const ffi = createMockFFI({
     disconnect: () => {
-      disconnectCount++;
+      closeCount++;
     },
   });
   const cn = new MssqlConnection(1n, ffi);
-  await cn.disconnect();
-  await cn.disconnect();
-  assertEquals(disconnectCount, 1);
+  await cn.close();
+  await cn.close();
+  assertEquals(closeCount, 1);
 });
 
-Deno.test("MssqlConnection.disconnect - swallows cleanup errors", async () => {
+Deno.test("MssqlConnection.close - swallows cleanup errors", async () => {
   const ffi = createMockFFI({
     queryStream: () => Promise.resolve(10n),
     streamClose: () => {
@@ -395,7 +384,7 @@ Deno.test("MssqlConnection.disconnect - swallows cleanup errors", async () => {
   const cn = new MssqlConnection(1n, ffi);
   await cn.queryStream("SELECT 1");
   // Should not throw
-  await cn.disconnect();
+  await cn.close();
 });
 
 Deno.test("MssqlConnection - committed tx is no-op during cleanup", async () => {
@@ -411,7 +400,7 @@ Deno.test("MssqlConnection - committed tx is no-op during cleanup", async () => 
   const cn = new MssqlConnection(1n, ffi);
   const tx = await cn.beginTransaction();
   await tx.commit();
-  await cn.disconnect();
+  await cn.close();
   assertEquals(rollbackCount, 0);
 });
 
@@ -427,7 +416,7 @@ Deno.test("MssqlConnection - naturally closed stream is not double-closed", asyn
   const stream = await cn.queryStream("SELECT 1");
   stream.close();
   assertEquals(streamCloseCount, 1);
-  await cn.disconnect();
+  await cn.close();
   assertEquals(streamCloseCount, 1); // Not closed again — already removed from tracking
 });
 
@@ -444,7 +433,7 @@ Deno.test("MssqlConnection.exec - returns ExecResult", async () => {
         }),
       ),
   });
-  const cn = new MssqlConnection(1n, ffi);
+  await using cn = new MssqlConnection(1n, ffi);
   const result = await cn.exec("sp_Test", {}, {
     commandType: "stored_procedure",
   });
@@ -452,7 +441,6 @@ Deno.test("MssqlConnection.exec - returns ExecResult", async () => {
   assertEquals(result.resultSets, 1);
   assertEquals(result.getOutput<number>("total"), 42);
   assertEquals(result.getResults(0), [{ id: 1 }]);
-  await cn.disconnect();
 });
 
 Deno.test("MssqlConnection.exec - throws on null result", async () => {
@@ -460,9 +448,8 @@ Deno.test("MssqlConnection.exec - throws on null result", async () => {
     exec: () => Promise.resolve(null),
     lastError: () => "Exec error",
   });
-  const cn = new MssqlConnection(1n, ffi);
+  await using cn = new MssqlConnection(1n, ffi);
   await assertRejects(() => cn.exec("sp_Bad"), Error, "Exec error");
-  await cn.disconnect();
 });
 
 Deno.test("serializeCommand - output param includes output flag", () => {
@@ -507,7 +494,7 @@ Deno.test("MssqlConnection - dispose on pooled connection calls poolRelease", ()
   assertEquals(disconnectCalled, false);
 });
 
-Deno.test("MssqlConnection - dispose on standalone calls disconnect", () => {
+Deno.test("MssqlConnection - dispose on standalone calls close", () => {
   let disconnected = false;
   const ffi = createMockFFI({
     disconnect: () => {
@@ -621,62 +608,6 @@ Deno.test("MssqlConnection - dispose closes streams synchronously", () => {
   // Use direct construction for unit test simplicity
   cn[Symbol.dispose]();
   assertEquals(streamCloseCount, 0); // No streams tracked
-});
-
-// ── close() tests ────────────────────────────────────────────
-
-Deno.test("MssqlConnection.close - on bare connection calls ffi.disconnect", async () => {
-  let disconnected = false;
-  const ffi = createMockFFI({
-    disconnect: () => {
-      disconnected = true;
-    },
-  });
-  const cn = new MssqlConnection(1n, ffi);
-  await cn.close();
-  assertEquals(disconnected, true);
-});
-
-Deno.test("MssqlConnection.close - on pooled connection evicts (calls disconnect, not poolRelease)", async () => {
-  let disconnectCalled = false;
-  let poolReleaseCalled = false;
-  const ffi = createMockFFI({
-    disconnect: () => {
-      disconnectCalled = true;
-    },
-    poolRelease: () => {
-      poolReleaseCalled = true;
-    },
-  });
-  const cn = new MssqlConnection(1n, ffi, 10n);
-  await cn.close();
-  assertEquals(disconnectCalled, true);
-  assertEquals(poolReleaseCalled, false);
-});
-
-Deno.test("MssqlConnection.close - idempotent (double call safe)", async () => {
-  let disconnectCount = 0;
-  const ffi = createMockFFI({
-    disconnect: () => {
-      disconnectCount++;
-    },
-  });
-  const cn = new MssqlConnection(1n, ffi);
-  await cn.close();
-  await cn.close();
-  assertEquals(disconnectCount, 1);
-});
-
-Deno.test("MssqlConnection.disconnect - delegates to close()", async () => {
-  let disconnected = false;
-  const ffi = createMockFFI({
-    disconnect: () => {
-      disconnected = true;
-    },
-  });
-  const cn = new MssqlConnection(1n, ffi);
-  await cn.disconnect();
-  assertEquals(disconnected, true);
 });
 
 // ── serializeCommand stream options tests ─────────────────────

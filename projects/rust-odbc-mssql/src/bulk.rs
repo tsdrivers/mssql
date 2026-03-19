@@ -71,15 +71,15 @@ fn build_insert_batch(
 ) -> Result<String> {
     let mut sql = String::with_capacity(rows.len() * 100);
 
-    // Escape table name (bracket-quoted)
+    // Table and column names are used as-is (user handles bracket escaping)
     sql.push_str("INSERT INTO ");
-    sql.push_str(&bracket_escape(table));
+    sql.push_str(table);
     sql.push_str(" (");
     for (i, name) in col_names.iter().enumerate() {
         if i > 0 {
             sql.push_str(", ");
         }
-        sql.push_str(&bracket_escape(name));
+        sql.push_str(name);
     }
     sql.push_str(") VALUES ");
 
@@ -148,23 +148,9 @@ fn value_to_literal(value: &serde_json::Value, col_type: &str) -> Result<String>
     }
 }
 
-/// Bracket-escape a SQL identifier.
-fn bracket_escape(name: &str) -> String {
-    // Remove existing brackets and re-wrap
-    let clean = name.trim_start_matches('[').trim_end_matches(']');
-    format!("[{}]", clean.replace(']', "]]"))
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn test_bracket_escape() {
-        assert_eq!(bracket_escape("TableName"), "[TableName]");
-        assert_eq!(bracket_escape("[Already]"), "[Already]");
-        assert_eq!(bracket_escape("has]bracket"), "[has]]bracket]");
-    }
 
     #[test]
     fn test_value_to_literal() {
@@ -212,7 +198,7 @@ mod tests {
         let sql = build_insert_batch("Users", &col_names, &columns, &rows).unwrap();
         assert_eq!(
             sql,
-            "INSERT INTO [Users] ([id], [name]) VALUES (1, N'Alice'), (2, N'Bob')"
+            "INSERT INTO Users (id, name) VALUES (1, N'Alice'), (2, N'Bob')"
         );
     }
 }

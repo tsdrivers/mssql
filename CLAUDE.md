@@ -4,21 +4,23 @@ SQL Server driver for Deno, Node.js 22+, and Bun via Rust FFI.
 
 ## Project Philosophy
 
-- **Public TS API first.** Design the TypeScript surface area to be clean, simple,
-  and well-documented. The Rust layer is an implementation detail — users should
-  never need to think about FFI, handles, or JSON serialization.
-- **Simple, readable code over cleverness.** Prefer straightforward implementations.
-  Three similar lines are better than a premature abstraction. Only add complexity
-  when it directly serves a user-facing need.
+- **Public TS API first.** Design the TypeScript surface area to be clean,
+  simple, and well-documented. The Rust layer is an implementation detail —
+  users should never need to think about FFI, handles, or JSON serialization.
+- **Simple, readable code over cleverness.** Prefer straightforward
+  implementations. Three similar lines are better than a premature abstraction.
+  Only add complexity when it directly serves a user-facing need.
 - **Minimal blast radius.** Changes should touch as few files as possible. Don't
-  refactor surrounding code when fixing a bug. Don't add features that weren't asked for.
-- **Test-driven confidence.** All functionality is validated through TS integration tests
-  (Deno, Node, Bun). Rust-only integration tests are unnecessary — the FFI boundary
-  is the contract that matters.
+  refactor surrounding code when fixing a bug. Don't add features that weren't
+  asked for.
+- **Test-driven confidence.** All functionality is validated through TS
+  integration tests (Deno, Node, Bun). Rust-only integration tests are
+  unnecessary — the FFI boundary is the contract that matters.
 
 ## Building & Testing
 
-Use the `run/` scripts. They handle Docker, native builds, DB setup, and test execution.
+Use the `run/` scripts. They handle Docker, native builds, DB setup, and test
+execution.
 
 ### Quick iteration (Docker + binary already running)
 
@@ -48,23 +50,24 @@ run/binall       # Cross-compile for all 6 targets → dist/bin/
 
 ### Environment variables
 
-| Variable | Default | Purpose |
-|---|---|---|
-| `MSSQL_HOST_PORT` | `14330` | Host port mapped to container's 1433 |
-| `MSSQL_SA_PASSWORD` | `DevPassword1!` | SA password for dev container |
-| `MSSQL_SA_CONNECTION` | Auto-derived | ADO.NET connection string for SA |
-| `MSSQL_SKIP_DOCKER` | `0` | Set `1` to skip Docker setup in test scripts |
-| `MSSQL_SKIP_BUILD` | `1` | Set `1` to skip `cargo build` in test scripts |
-| `MSSQL_TEST_ENABLED` | Set by test scripts | Integration tests check this to run |
-| `MSSQL_TEST_CONNECTION` | Set by test scripts | Connection string for test DB |
+| Variable                | Default             | Purpose                                       |
+| ----------------------- | ------------------- | --------------------------------------------- |
+| `MSSQL_HOST_PORT`       | `14330`             | Host port mapped to container's 1433          |
+| `MSSQL_SA_PASSWORD`     | `DevPassword1!`     | SA password for dev container                 |
+| `MSSQL_SA_CONNECTION`   | Auto-derived        | ADO.NET connection string for SA              |
+| `MSSQL_SKIP_DOCKER`     | `0`                 | Set `1` to skip Docker setup in test scripts  |
+| `MSSQL_SKIP_BUILD`      | `1`                 | Set `1` to skip `cargo build` in test scripts |
+| `MSSQL_TEST_ENABLED`    | Set by test scripts | Integration tests check this to run           |
+| `MSSQL_TEST_CONNECTION` | Set by test scripts | Connection string for test DB                 |
 
-A `.env` file at project root (gitignored) is sourced by all `run/` scripts if present.
+A `.env` file at project root (gitignored) is sourced by all `run/` scripts if
+present.
 
 ### Docker
 
 `docker-compose.yml` runs MSSQL Server 2025 Developer Edition on port 14330.
-`run/scripts/db-setup.ts` creates the `MSSQLTS_TEST` database with UTF-8 collation
-(`Latin1_General_100_CI_AS_SC_UTF8`).
+`run/scripts/db-setup.ts` creates the `MSSQLTS_TEST` database with UTF-8
+collation (`Latin1_General_100_CI_AS_SC_UTF8`).
 
 ## Architecture Overview
 
@@ -81,47 +84,51 @@ projects/ts-mssql/mod.ts  →  Entry point (runtime detection, lazy FFI init)
 ### Key files
 
 **Rust (`projects/rust-odbc-mssql/src/`)**
-| File | Purpose |
-|---|---|
-| `lib.rs` | FFI entry points (`#[no_mangle] pub extern "C" fn`) |
-| `handle.rs` | Handle storage: u64 → `Arc<ConnHandle/PoolHandle>` in static HashMaps |
-| `query.rs` | Query execution, parameter marshalling, result → JSON serialization |
-| `config.rs` | `NormalizedConfig` deserialized from JSON (auth, host, pool settings) |
-| `pool.rs` | ODBC connection pool (idle queue, min/max) |
-| `stream.rs` | Row streaming via VecDeque cursor |
-| `bulk.rs` | Bulk insert via batched INSERT VALUES statements |
-| `debug.rs` | Debug logging (`MSSQLTS_DEBUG` env var, stderr output) |
-| `diagnostics.rs` | Pool/connection diagnostic info (no credentials) |
-| `error.rs` | Error types |
-| `filestream.rs` | Windows FILESTREAM I/O |
+
+| File             | Purpose                                                               |
+| ---------------- | --------------------------------------------------------------------- |
+| `lib.rs`         | FFI entry points (`#[no_mangle] pub extern "C" fn`)                   |
+| `handle.rs`      | Handle storage: u64 → `Arc<ConnHandle/PoolHandle>` in static HashMaps |
+| `query.rs`       | Query execution, parameter marshalling, result → JSON serialization   |
+| `config.rs`      | `NormalizedConfig` deserialized from JSON (auth, host, pool settings) |
+| `pool.rs`        | ODBC connection pool (idle queue, min/max)                            |
+| `stream.rs`      | Row streaming via VecDeque cursor                                     |
+| `bulk.rs`        | Bulk insert via batched INSERT VALUES statements                      |
+| `debug.rs`       | Debug logging (`MSSQLTS_DEBUG` env var, stderr output)                |
+| `diagnostics.rs` | Pool/connection diagnostic info (no credentials)                      |
+| `error.rs`       | Error types                                                           |
+| `filestream.rs`  | Windows FILESTREAM I/O                                                |
 
 **TypeScript (`projects/ts-mssql/`)**
-| File | Purpose |
-|---|---|
-| `mod.ts` | Public entry: `createPool()`, `connect()`, runtime detection |
-| `core/runtime.ts` | `RuntimeFFI` interface — the contract all FFI adapters implement |
-| `core/connection.ts` | `MssqlConnection` class + `serializeCommand()` helper |
-| `core/pool.ts` | `MssqlPool`, `PooledQueryStream`, `PoolBulkInsertBuilder` |
-| `core/types.ts` | All public TypeScript types/interfaces |
-| `core/config.ts` | Connection string parsing (ADO.NET, URL, config object) |
-| `core/stream.ts` | `QueryStream` — async iteration, map/filter/reduce |
-| `core/transaction.ts` | `Transaction` — begin/commit/rollback lifecycle |
-| `core/bulk.ts` | `BulkInsertBuilder` fluent API |
-| `core/exec_result.ts` | `ExecResult` — OUTPUT params + multiple result sets |
-| `core/filestream.ts` | `FilestreamHandle` (internal), `FilestreamReadable/Writable/Duplex` (node:stream), web stream helpers |
-| `ffi/deno.ts` | Deno FFI adapter (`Deno.dlopen`, `nonblocking: true`) |
-| `ffi/node.ts` | Node.js + Bun FFI adapter (`koffi`, async worker threads) |
-| `ffi/bun.ts` | Re-exports `node.ts` (Bun's `bun:ffi` lacks async support) |
-| `ffi/resolve.ts` | Runtime detection, lazy FFI singleton |
+
+| File                  | Purpose                                                                                               |
+| --------------------- | ----------------------------------------------------------------------------------------------------- |
+| `mod.ts`              | Public entry: `createPool()`, `connect()`, runtime detection                                          |
+| `core/runtime.ts`     | `RuntimeFFI` interface — the contract all FFI adapters implement                                      |
+| `core/connection.ts`  | `MssqlConnection` class + `serializeCommand()` helper                                                 |
+| `core/pool.ts`        | `MssqlPool`, `PooledQueryStream`, `PoolBulkInsertBuilder`                                             |
+| `core/types.ts`       | All public TypeScript types/interfaces                                                                |
+| `core/config.ts`      | Connection string parsing (ADO.NET, URL, config object)                                               |
+| `core/stream.ts`      | `QueryStream` — async iteration, map/filter/reduce                                                    |
+| `core/transaction.ts` | `Transaction` — begin/commit/rollback lifecycle                                                       |
+| `core/bulk.ts`        | `BulkInsertBuilder` fluent API                                                                        |
+| `core/exec_result.ts` | `ExecResult` — OUTPUT params + multiple result sets                                                   |
+| `core/filestream.ts`  | `FilestreamHandle` (internal), `FilestreamReadable/Writable/Duplex` (node:stream), web stream helpers |
+| `ffi/deno.ts`         | Deno FFI adapter (`Deno.dlopen`, `nonblocking: true`)                                                 |
+| `ffi/node.ts`         | Node.js + Bun FFI adapter (`koffi`, async worker threads)                                             |
+| `ffi/bun.ts`          | Re-exports `node.ts` (Bun's `bun:ffi` lacks async support)                                            |
+| `ffi/resolve.ts`      | Runtime detection, lazy FFI singleton                                                                 |
 
 **Tests**
-| Location | What |
-|---|---|
-| `projects/ts-mssql/core/*_test.ts` | Unit tests (172 tests, no DB needed) |
+
+| Location                                     | What                                     |
+| -------------------------------------------- | ---------------------------------------- |
+| `projects/ts-mssql/core/*_test.ts`           | Unit tests (172 tests, no DB needed)     |
 | `projects/test/integration/{deno,node,bun}/` | Integration tests (29 tests per runtime) |
 
-Integration tests are split into 6 files per runtime:
-`env_test.ts`, `query_test.ts`, `transaction_test.ts`, `pool_test.ts`, `exec_test.ts`, `windows_test.ts`
+Integration tests are split into 6 files per runtime: `env_test.ts`,
+`query_test.ts`, `transaction_test.ts`, `pool_test.ts`, `exec_test.ts`,
+`windows_test.ts`
 
 ## Critical Gotchas
 
@@ -144,31 +151,38 @@ async query<T>(sql: string): Promise<T[]> {
 ```
 
 With `await using`, disposal runs when the `return` statement executes, NOT when
-the returned Promise resolves. For Deno's `nonblocking: true` FFI calls (which run
-on background threads), `return cn.query(...)` causes `poolRelease` to fire while
-the query is still in-flight on the background thread, corrupting the connection.
+the returned Promise resolves. For Deno's `nonblocking: true` FFI calls (which
+run on background threads), `return cn.query(...)` causes `poolRelease` to fire
+while the query is still in-flight on the background thread, corrupting the
+connection.
 
 **Any new pool convenience method must follow this pattern.**
 
 ### Never use `panic = "abort"`
 
-This is an FFI library loaded into a JS runtime. `panic = "abort"` would kill the
-entire Node/Deno/Bun process on any Rust panic. The default `panic = "unwind"` lets
-panics propagate as caught errors, keeping the host process alive.
+This is an FFI library loaded into a JS runtime. `panic = "abort"` would kill
+the entire Node/Deno/Bun process on any Rust panic. The default
+`panic = "unwind"` lets panics propagate as caught errors, keeping the host
+process alive.
 
 ### Nonblocking FFI across runtimes
 
 All three runtimes use nonblocking async calls for I/O-bound FFI operations:
-- **Deno:** `nonblocking: true` on symbol definitions runs calls on V8's thread pool
-- **Node.js + Bun:** `koffi`'s `.async()` runs calls on worker threads via callback
 
-Synchronous symbols (`poolRelease`, `disconnect`, `streamClose`) run on the main thread.
-This asymmetry is intentional — release/close operations are fast HashMap removals that
-must complete synchronously before the calling code continues.
+- **Deno:** `nonblocking: true` on symbol definitions runs calls on V8's thread
+  pool
+- **Node.js + Bun:** `koffi`'s `.async()` runs calls on worker threads via
+  callback
+
+Synchronous symbols (`poolRelease`, `disconnect`, `streamClose`) run on the main
+thread. This asymmetry is intentional — release/close operations are fast
+HashMap removals that must complete synchronously before the calling code
+continues.
 
 ### Adding new FFI symbols — 5 files to update
 
-1. `projects/rust-odbc-mssql/src/lib.rs` — `#[no_mangle] pub extern "C" fn` implementation
+1. `projects/rust-odbc-mssql/src/lib.rs` — `#[no_mangle] pub extern "C" fn`
+   implementation
 2. `projects/ts-mssql/ffi/deno.ts` — Deno `dlopen` symbol definition
 3. `projects/ts-mssql/ffi/node.ts` — koffi function binding
 4. `projects/ts-mssql/ffi/bun.ts` — bun:ffi symbol definition
@@ -176,22 +190,23 @@ must complete synchronously before the calling code continues.
 
 ### Handle lifecycle
 
-All Rust state is behind u64 opaque handle IDs stored in global `lazy_static` HashMaps.
-`Arc<ConnHandle>` is used so streaming queries can hold references without blocking
-connection release.
+All Rust state is behind u64 opaque handle IDs stored in global `lazy_static`
+HashMaps. `Arc<ConnHandle>` is used so streaming queries can hold references
+without blocking connection release.
 
 ### Connection cleanup cascade
 
 `MssqlConnection.#cleanup()` disposes in order:
+
 1. All tracked transactions (which close their streams and rollback)
 2. Any remaining orphan streams
 3. Then the connection itself is released/disconnected
 
 ### Build profile
 
-`Cargo.toml` release profile: `opt-level = "z"` (size), `lto = true`, `codegen-units = 1`.
-Debug symbols are built in but split out by `run/bin` into separate `.debug`/`.dSYM`/`.pdb`
-files. The shipped binary is stripped.
+`Cargo.toml` release profile: `opt-level = "z"` (size), `lto = true`,
+`codegen-units = 1`. Debug symbols are built in but split out by `run/bin` into
+separate `.debug`/`.dSYM`/`.pdb` files. The shipped binary is stripped.
 
 ## Current State
 
@@ -202,8 +217,8 @@ Kerberos, Azure AD), and encryption natively. FILESTREAM now uses
 `OpenSqlFilestream` from the ODBC driver DLL directly (no OLE DB dependency).
 Phase 16 added cross-platform VARBINARY(MAX) blob streaming via `cn.blob.*`
 sub-object API (no new FFI — implemented in TypeScript using existing queries).
-All 295 tests pass across Deno, Node.js, and Bun on Windows Server 2025.
-See `TODO.md` for Phase 17 (SQL Server 2025) and Phase 18 (outstanding items).
+All 295 tests pass across Deno, Node.js, and Bun on Windows Server 2025. See
+`TODO.md` for Phase 17 (SQL Server 2025) and Phase 18 (outstanding items).
 
 ## Code Style
 

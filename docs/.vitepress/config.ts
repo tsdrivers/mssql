@@ -62,8 +62,14 @@ export default defineConfig({
             { text: "MssqlPool", link: "/api/classes/MssqlPool" },
             { text: "Transaction", link: "/api/classes/Transaction" },
             { text: "QueryStream", link: "/api/classes/QueryStream" },
-            { text: "PooledQueryStream", link: "/api/classes/PooledQueryStream" },
-            { text: "BulkInsertBuilder", link: "/api/classes/BulkInsertBuilder" },
+            {
+              text: "PooledQueryStream",
+              link: "/api/classes/PooledQueryStream",
+            },
+            {
+              text: "BulkInsertBuilder",
+              link: "/api/classes/BulkInsertBuilder",
+            },
             { text: "FilestreamHandle", link: "/api/classes/FilestreamHandle" },
           ],
         },
@@ -75,7 +81,10 @@ export default defineConfig({
             { text: "CommandOptions", link: "/api/interfaces/CommandOptions" },
             { text: "BulkColumn", link: "/api/interfaces/BulkColumn" },
             { text: "TypedParam", link: "/api/interfaces/TypedParam" },
-            { text: "ResolutionContext", link: "/api/interfaces/ResolutionContext" },
+            {
+              text: "ResolutionContext",
+              link: "/api/interfaces/ResolutionContext",
+            },
             { text: "RuntimeFFI", link: "/api/interfaces/RuntimeFFI" },
             { text: "RuntimeInfo", link: "/api/interfaces/RuntimeInfo" },
           ],
@@ -85,11 +94,17 @@ export default defineConfig({
           collapsed: true,
           items: [
             { text: "SqlType", link: "/api/type-aliases/SqlType" },
-            { text: "IsolationLevel", link: "/api/type-aliases/IsolationLevel" },
+            {
+              text: "IsolationLevel",
+              link: "/api/type-aliases/IsolationLevel",
+            },
             { text: "Params", link: "/api/type-aliases/Params" },
             { text: "ParamValue", link: "/api/type-aliases/ParamValue" },
             { text: "CommandType", link: "/api/type-aliases/CommandType" },
-            { text: "FilestreamMode", link: "/api/type-aliases/FilestreamMode" },
+            {
+              text: "FilestreamMode",
+              link: "/api/type-aliases/FilestreamMode",
+            },
             { text: "Utf8Collation", link: "/api/type-aliases/Utf8Collation" },
           ],
         },
@@ -99,7 +114,10 @@ export default defineConfig({
           items: [
             { text: "newCOMB", link: "/api/functions/newCOMB" },
             { text: "parseConnection", link: "/api/functions/parseConnection" },
-            { text: "resolveLibraryPath", link: "/api/functions/resolveLibraryPath" },
+            {
+              text: "resolveLibraryPath",
+              link: "/api/functions/resolveLibraryPath",
+            },
             { text: "libraryFileName", link: "/api/functions/libraryFileName" },
             { text: "downloadUrl", link: "/api/functions/downloadUrl" },
             { text: "utf8Column", link: "/api/functions/utf8Column" },

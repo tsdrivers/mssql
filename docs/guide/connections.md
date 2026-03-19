@@ -7,36 +7,38 @@ Three formats are supported:
 ### ADO.NET Style
 
 ```ts
-const cn = await mssql.connect(
-  "Server=myserver;Database=mydb;User Id=sa;Password=pass;TrustServerCertificate=true;"
+await using cn = await mssql.connect(
+  "Server=myserver;Database=mydb;User Id=sa;Password=pass;TrustServerCertificate=true;",
 );
 ```
 
 Common keys (case-insensitive, aliases supported):
 
-| Key | Aliases | Description |
-|-----|---------|-------------|
-| `Server` | `Data Source`, `Address` | Server hostname (see [Named Instances](#named-instances)) |
-| `Database` | `Initial Catalog` | Database name |
-| `User Id` | `UID` | SQL auth username |
-| `Password` | `PWD` | SQL auth password |
-| `Integrated Security` | | `true` or `SSPI` for Windows auth |
-| `TrustServerCertificate` | | Skip TLS validation |
-| `Encrypt` | | `true`/`false`/`strict` |
-| `Connect Timeout` | `Connection Timeout` | Timeout in seconds |
+| Key                      | Aliases                  | Description                                               |
+| ------------------------ | ------------------------ | --------------------------------------------------------- |
+| `Server`                 | `Data Source`, `Address` | Server hostname (see [Named Instances](#named-instances)) |
+| `Database`               | `Initial Catalog`        | Database name                                             |
+| `User Id`                | `UID`                    | SQL auth username                                         |
+| `Password`               | `PWD`                    | SQL auth password                                         |
+| `Integrated Security`    |                          | `true` or `SSPI` for Windows auth                         |
+| `TrustServerCertificate` |                          | Skip TLS validation                                       |
+| `Encrypt`                |                          | `true`/`false`/`strict`                                   |
+| `Connect Timeout`        | `Connection Timeout`     | Timeout in seconds                                        |
 
 The `Server` value supports several formats:
 
-| Format | Example | Description |
-|--------|---------|-------------|
-| `host` | `myserver` | Connects on the default port (1433) |
-| `host,port` | `myserver,1434` | Explicit port (comma-separated, per ADO.NET convention) |
+| Format          | Example               | Description                                              |
+| --------------- | --------------------- | -------------------------------------------------------- |
+| `host`          | `myserver`            | Connects on the default port (1433)                      |
+| `host,port`     | `myserver,1434`       | Explicit port (comma-separated, per ADO.NET convention)  |
 | `host\instance` | `myserver\SQLEXPRESS` | Named instance (see [Named Instances](#named-instances)) |
 
 ### URL Style
 
 ```ts
-const cn = await mssql.connect("mssql://sa:pass@myserver:1433/mydb?trustServerCertificate=true");
+await using cn = await mssql.connect(
+  "mssql://sa:pass@myserver:1433/mydb?trustServerCertificate=true",
+);
 ```
 
 Both `mssql://` and `sqlserver://` schemes are supported.
@@ -44,7 +46,7 @@ Both `mssql://` and `sqlserver://` schemes are supported.
 ### Config Object
 
 ```ts
-const cn = await mssql.connect({
+await using cn = await mssql.connect({
   server: "myserver",
   database: "mydb",
   authentication: {
@@ -103,11 +105,12 @@ needed. This is the most common method in enterprise Windows environments.
 ```
 
 ::: tip Platform Behavior
-| Platform | How It Works |
-|---|---|
-| **Windows** | Uses SSPI (Security Support Provider Interface) automatically. The current Windows user's credentials are sent to SQL Server via Kerberos or NTLM. No additional configuration needed. |
-| **Linux / macOS** | Uses Kerberos. You must have a valid Kerberos ticket before connecting. Obtain one with `kinit user@REALM` (requires `krb5-user` on Debian/Ubuntu or `krb5-workstation` on RHEL). |
-:::
+
+| Platform          | How It Works                                                                                                                                                                           |
+| ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Windows**       | Uses SSPI (Security Support Provider Interface) automatically. The current Windows user's credentials are sent to SQL Server via Kerberos or NTLM. No additional configuration needed. |
+| **Linux / macOS** | Uses Kerberos. You must have a valid Kerberos ticket before connecting. Obtain one with `kinit user@REALM` (requires `krb5-user` on Debian/Ubuntu or `krb5-workstation` on RHEL).      |
+| :::               |                                                                                                                                                                                        |
 
 ### NTLM Authentication (Explicit Domain Credentials)
 
@@ -116,6 +119,7 @@ domain, username, and password. Works on **all platforms** — the ODBC driver
 handles NTLM negotiation natively.
 
 This is useful when:
+
 - You need to connect as a different user than the current process
 - You're on Linux/macOS and don't want to set up Kerberos
 - You're running in a container or CI environment
@@ -137,20 +141,19 @@ This is useful when:
 }
 ```
 
-::: info Cross-Platform
-NTLM with explicit credentials is the simplest way to use Windows/domain
-authentication from Linux or macOS — no Kerberos ticket or keytab required.
-The ODBC driver handles the NTLM handshake on all platforms.
+::: info Cross-Platform NTLM with explicit credentials is the simplest way to
+use Windows/domain authentication from Linux or macOS — no Kerberos ticket or
+keytab required. The ODBC driver handles the NTLM handshake on all platforms.
 :::
 
 ### Authentication Method Summary
 
-| Method | Credentials Required | Windows | Linux / macOS |
-|---|---|---|---|
-| SQL Server (`sql`) | Username + password | Yes | Yes |
-| Windows Integrated (`windows`) | None (current user) | Yes (SSPI) | Yes (Kerberos ticket required) |
-| NTLM (`ntlm`) | Domain + username + password | Yes | Yes |
-| Azure AD (see below) | Token or credentials | Yes | Yes |
+| Method                         | Credentials Required         | Windows    | Linux / macOS                  |
+| ------------------------------ | ---------------------------- | ---------- | ------------------------------ |
+| SQL Server (`sql`)             | Username + password          | Yes        | Yes                            |
+| Windows Integrated (`windows`) | None (current user)          | Yes (SSPI) | Yes (Kerberos ticket required) |
+| NTLM (`ntlm`)                  | Domain + username + password | Yes        | Yes                            |
+| Azure AD (see below)           | Token or credentials         | Yes        | Yes                            |
 
 ## Azure AD / Entra ID Authentication
 
@@ -167,7 +170,7 @@ If you already have an access token (from `@azure/identity`, a managed identity
 endpoint, or another source):
 
 ```ts
-const pool = await mssql.createPool({
+await using pool = await mssql.createPool({
   server: "myserver.database.windows.net",
   database: "mydb",
   authentication: {
@@ -189,10 +192,9 @@ Or via URL:
 mssql://myserver.database.windows.net/mydb?authentication=azure-active-directory-access-token&token=eyJ...&encrypt=true
 ```
 
-::: info Encryption
-Azure SQL requires encrypted connections. Always set `Encrypt=true` (or omit
-it — the driver defaults to encrypted for Azure endpoints).
-:::
+::: info Encryption Azure SQL requires encrypted connections. Always set
+`Encrypt=true` (or omit it — the driver defaults to encrypted for Azure
+endpoints). :::
 
 ### Token Provider Callback
 
@@ -207,12 +209,14 @@ import { DefaultAzureCredential } from "@azure/identity";
 
 const credential = new DefaultAzureCredential();
 
-const pool = await mssql.createPool({
+await using pool = await mssql.createPool({
   server: "myserver.database.windows.net",
   database: "mydb",
   authentication: { type: "azure-active-directory-default" },
   tokenProvider: async () => {
-    const token = await credential.getToken("https://database.windows.net/.default");
+    const token = await credential.getToken(
+      "https://database.windows.net/.default",
+    );
     return token.token;
   },
 });
@@ -225,7 +229,7 @@ import { ClientSecretCredential } from "@azure/identity";
 
 const credential = new ClientSecretCredential(tenantId, clientId, clientSecret);
 
-const pool = await mssql.createPool({
+await using pool = await mssql.createPool({
   server: "myserver.database.windows.net",
   database: "mydb",
   authentication: {
@@ -233,15 +237,17 @@ const pool = await mssql.createPool({
     options: { clientId, clientSecret, tenantId },
   },
   tokenProvider: async () => {
-    const token = await credential.getToken("https://database.windows.net/.default");
+    const token = await credential.getToken(
+      "https://database.windows.net/.default",
+    );
     return token.token;
   },
 });
 ```
 
 > **Note:** The `authentication.options` fields (`clientId`, `clientSecret`,
-> `tenantId`) on the service principal type are informational — the actual
-> token acquisition is handled by your `tokenProvider` callback.
+> `tenantId`) on the service principal type are informational — the actual token
+> acquisition is handled by your `tokenProvider` callback.
 
 ## Named Instances
 
@@ -254,8 +260,8 @@ named instance.
 Use the `host\instance` format in the `Server` key:
 
 ```ts
-const cn = await mssql.connect(
-  "Server=myserver\\SQLEXPRESS;Database=mydb;User Id=sa;Password=pass;TrustServerCertificate=true;"
+await using cn = await mssql.connect(
+  "Server=myserver\\SQLEXPRESS;Database=mydb;User Id=sa;Password=pass;TrustServerCertificate=true;",
 );
 ```
 
@@ -265,15 +271,15 @@ const cn = await mssql.connect(
 ### URL — `instanceName` query parameter
 
 ```ts
-const cn = await mssql.connect(
-  "mssql://sa:pass@myserver/mydb?instanceName=SQLEXPRESS&trustServerCertificate=true"
+await using cn = await mssql.connect(
+  "mssql://sa:pass@myserver/mydb?instanceName=SQLEXPRESS&trustServerCertificate=true",
 );
 ```
 
 ### Config Object — `options.instanceName`
 
 ```ts
-const cn = await mssql.connect({
+await using cn = await mssql.connect({
   server: "myserver",
   database: "mydb",
   authentication: {
@@ -293,17 +299,17 @@ const cn = await mssql.connect({
 ```ts
 await using cn = await mssql.connect("Server=localhost;...");
 const rows = await cn.query("SELECT 1 AS val");
-// Connection automatically disconnected at end of scope
+// Connection automatically closed at end of scope
 ```
 
-Or explicitly disconnect:
+Or explicitly close (for cases where you need manual lifecycle control):
 
 ```ts
 const cn = await mssql.connect("Server=localhost;...");
 try {
   const rows = await cn.query("SELECT 1 AS val");
 } finally {
-  cn.disconnect();
+  await cn.close();
 }
 ```
 

@@ -137,10 +137,9 @@ describe("VARBINARY(max)", () => {
     const env = getTestEnv();
     await using cn = await mssql.connect(env.connectionString);
 
-    const tableExists =
-      (await cn.scalar<number>(
-        "SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'BinaryFiles'",
-      )) ?? 0;
+    const tableExists = (await cn.scalar<number>(
+      "SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'BinaryFiles'",
+    )) ?? 0;
     if (!tableExists) return;
 
     const testName = `test_vb_${Date.now()}.bin`;
@@ -188,8 +187,10 @@ describe("blob streaming", () => {
     {
       await using tx = await cn.beginTransaction();
       const writable = cn.blob.filestream.write(tx, {
-        table: "#blob_stream", column: "data",
-        where: "id = 1", chunkSize: 64,
+        table: "#blob_stream",
+        column: "data",
+        where: "id = 1",
+        chunkSize: 64,
       });
       const mid = Math.floor(TEST_BYTES.length / 2);
       writable.write(TEST_BYTES.slice(0, mid));
@@ -205,8 +206,10 @@ describe("blob streaming", () => {
     {
       await using tx = await cn.beginTransaction();
       const readable = cn.blob.filestream.read(tx, {
-        table: "#blob_stream", column: "data",
-        where: "id = 1", chunkSize: 64,
+        table: "#blob_stream",
+        column: "data",
+        where: "id = 1",
+        chunkSize: 64,
       });
       const chunks: Uint8Array[] = [];
       for await (const chunk of readable) {
@@ -217,7 +220,10 @@ describe("blob streaming", () => {
       const total = chunks.reduce((n, c) => n + c.length, 0);
       const result = new Uint8Array(total);
       let offset = 0;
-      for (const c of chunks) { result.set(c, offset); offset += c.length; }
+      for (const c of chunks) {
+        result.set(c, offset);
+        offset += c.length;
+      }
       strictEqual(new TextDecoder().decode(result), TEST_CONTENT);
     }
   });
@@ -235,7 +241,9 @@ describe("blob streaming", () => {
     {
       await using tx = await cn.beginTransaction();
       const ws = cn.blob.webstream.write(tx, {
-        table: "#blob_web", column: "data", where: "id = 1",
+        table: "#blob_web",
+        column: "data",
+        where: "id = 1",
       });
       const writer = ws.getWriter();
       await writer.write(TEST_BYTES);
@@ -247,16 +255,21 @@ describe("blob streaming", () => {
     {
       await using tx = await cn.beginTransaction();
       const rs = cn.blob.webstream.read(tx, {
-        table: "#blob_web", column: "data", where: "id = 1",
+        table: "#blob_web",
+        column: "data",
+        where: "id = 1",
       });
       const chunks: Uint8Array[] = [];
-      for await (const chunk of rs) { chunks.push(chunk); }
+      for await (const chunk of rs) chunks.push(chunk);
       await tx.commit();
 
       const total = chunks.reduce((n, c) => n + c.length, 0);
       const result = new Uint8Array(total);
       let offset = 0;
-      for (const c of chunks) { result.set(c, offset); offset += c.length; }
+      for (const c of chunks) {
+        result.set(c, offset);
+        offset += c.length;
+      }
       strictEqual(new TextDecoder().decode(result), TEST_CONTENT);
     }
   });
@@ -282,8 +295,10 @@ describe("blob streaming", () => {
         await using tx = await cn.beginTransaction();
         const source = createReadStream(tmpInput);
         const writable = cn.blob.filestream.write(tx, {
-          table: "#blob_pipeline", column: "data",
-          where: "id = 1", chunkSize: 64,
+          table: "#blob_pipeline",
+          column: "data",
+          where: "id = 1",
+          chunkSize: 64,
         });
         await pipeline(source, writable);
         await tx.commit();
@@ -293,8 +308,10 @@ describe("blob streaming", () => {
       {
         await using tx = await cn.beginTransaction();
         const readable = cn.blob.filestream.read(tx, {
-          table: "#blob_pipeline", column: "data",
-          where: "id = 1", chunkSize: 64,
+          table: "#blob_pipeline",
+          column: "data",
+          where: "id = 1",
+          chunkSize: 64,
         });
         const dest = createWriteStream(tmpOutput);
         await pipeline(readable, dest);
@@ -336,7 +353,9 @@ describe("blob streaming", () => {
           },
         });
         const writable = cn.blob.webstream.write(tx, {
-          table: "#blob_webpipe", column: "data", where: "id = 1",
+          table: "#blob_webpipe",
+          column: "data",
+          where: "id = 1",
         });
         await source.pipeTo(writable);
         await tx.commit();
@@ -346,16 +365,21 @@ describe("blob streaming", () => {
       {
         await using tx = await cn.beginTransaction();
         const rs = cn.blob.webstream.read(tx, {
-          table: "#blob_webpipe", column: "data", where: "id = 1",
+          table: "#blob_webpipe",
+          column: "data",
+          where: "id = 1",
         });
         const chunks: Uint8Array[] = [];
-        for await (const chunk of rs) { chunks.push(chunk); }
+        for await (const chunk of rs) chunks.push(chunk);
         await tx.commit();
 
         const total = chunks.reduce((n, c) => n + c.length, 0);
         const result = new Uint8Array(total);
         let offset = 0;
-        for (const c of chunks) { result.set(c, offset); offset += c.length; }
+        for (const c of chunks) {
+          result.set(c, offset);
+          offset += c.length;
+        }
         await writeFile(tmpOutput, result);
       }
 
