@@ -18,5 +18,5 @@ features:
   - title: Modern TypeScript
     details: AsyncDisposable support, streaming queries, tagged template literals, and full type safety.
   - title: Feature Rich
-    details: Connection pooling, transactions, bulk insert, FILESTREAM, COMB UUIDs, and UTF-8 collation helpers.
+    details: Connection pooling, transactions, bulk insert, FILESTREAM, and COMB UUIDs.
 ---

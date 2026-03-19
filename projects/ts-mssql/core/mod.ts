@@ -1,10 +1,4 @@
 export { newCOMB } from "./comb.ts";
-export {
-  setDatabaseUtf8,
-  supportsUtf8,
-  UTF8_COLLATIONS,
-  utf8Column,
-} from "./collation.ts";
 export { Transaction } from "./transaction.ts";
 export { QueryStream } from "./stream.ts";
 export { BulkInsertBuilder } from "./bulk.ts";
@@ -42,5 +36,4 @@ export type {
   SqlType,
   StreamOptions,
   TypedParam,
-  Utf8Collation,
 } from "./types.ts";

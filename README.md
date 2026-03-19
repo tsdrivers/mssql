@@ -29,7 +29,6 @@ Full documentation is available at
 - Cascading resource cleanup — disposing a connection auto-cleans child
   transactions and streams
 - COMB UUID generation for SQL Server-friendly sequential GUIDs
-- UTF-8 collation helpers
 - Transparent native binary download (postinstall for Node/Bun, install script
   for Deno)
 - FILESTREAM support (Windows only)

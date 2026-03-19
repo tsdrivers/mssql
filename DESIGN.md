@@ -108,9 +108,6 @@ const id = mssql.newCOMB();
 await using fs = cn.openFilestream(path, txContext, "read");
 const data = await fs.readAll();
 
-// UTF-8 collation helpers
-mssql.utf8Column("Name", "varchar(200)")
-await mssql.supportsUtf8(cn)
 ```
 
 ## Connection String Formats

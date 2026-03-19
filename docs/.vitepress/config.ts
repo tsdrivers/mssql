@@ -39,7 +39,6 @@ export default defineConfig({
           text: "Advanced",
           items: [
             { text: "COMB UUIDs", link: "/guide/comb" },
-            { text: "UTF-8 Collation", link: "/guide/utf8" },
             { text: "Blob Streaming", link: "/guide/blob-streaming" },
             { text: "FILESTREAM", link: "/guide/filestream" },
             {
@@ -105,7 +104,6 @@ export default defineConfig({
               text: "FilestreamMode",
               link: "/api/type-aliases/FilestreamMode",
             },
-            { text: "Utf8Collation", link: "/api/type-aliases/Utf8Collation" },
           ],
         },
         {
@@ -120,9 +118,6 @@ export default defineConfig({
             },
             { text: "libraryFileName", link: "/api/functions/libraryFileName" },
             { text: "downloadUrl", link: "/api/functions/downloadUrl" },
-            { text: "utf8Column", link: "/api/functions/utf8Column" },
-            { text: "supportsUtf8", link: "/api/functions/supportsUtf8" },
-            { text: "setDatabaseUtf8", link: "/api/functions/setDatabaseUtf8" },
           ],
         },
       ],

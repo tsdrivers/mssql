@@ -41,15 +41,6 @@ export type CommandType = "text" | "stored_procedure";
 
 export type FilestreamMode = "read" | "write" | "readwrite";
 
-/**
- * Common UTF-8 collations available in SQL Server 2019+.
- */
-export type Utf8Collation =
-  | "LATIN1_GENERAL_100_CI_AS_SC_UTF8"
-  | "LATIN1_GENERAL_100_CS_AS_SC_UTF8"
-  | "LATIN1_GENERAL_100_BIN2_UTF8"
-  | string;
-
 // ── Parameter Types ─────────────────────────────────────────
 
 export type ParamValue =

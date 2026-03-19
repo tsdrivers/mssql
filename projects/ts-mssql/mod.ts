@@ -104,12 +104,6 @@ export async function closeAll(): Promise<void> {
 // ── Re-exports from core (no FFI needed) ──────────────────────
 
 export { newCOMB } from "./core/comb.ts";
-export {
-  setDatabaseUtf8,
-  supportsUtf8,
-  UTF8_COLLATIONS,
-  utf8Column,
-} from "./core/collation.ts";
 export { ExecResult } from "./core/exec_result.ts";
 export { Transaction } from "./core/transaction.ts";
 export { QueryStream } from "./core/stream.ts";
@@ -145,5 +139,4 @@ export type {
   ParamValue,
   SqlType,
   TypedParam,
-  Utf8Collation,
 } from "./core/types.ts";

@@ -110,8 +110,7 @@
       (`bun add --no-save`)
 - [x] Clear error message when auto-install fails, directing users to install
       runtime-specific package
-- [x] Static re-exports from core: types, `newCOMB()`, `parseConnection()`,
-      collation helpers, `UTF8_COLLATIONS`
+- [x] Static re-exports from core: types, `newCOMB()`, `parseConnection()`
 - [x] Shim `createPool()` and `connect()` to delegate to resolved backend
 - [x] Add `packages/mssql` to workspace in root `deno.json`
 - [x] Update README.md — lead with `@tsdrivers/mssql` as primary install target
