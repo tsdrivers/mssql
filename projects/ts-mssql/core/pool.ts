@@ -19,11 +19,19 @@ import type { QueryStream } from "./stream.ts";
  * A connection pool for SQL Server. Acquire connections or use
  * convenience methods that auto-acquire and release.
  *
+ * Most applications should create a single pool at startup and
+ * close it when the application shuts down:
+ *
  * @example
  * ```ts
+ * // Create once at startup
  * const pool = await mssql.createPool(connectionString);
+ *
+ * // Use throughout the application lifetime
  * const users = await pool.query<User>("SELECT * FROM Users");
- * await pool.close();
+ *
+ * // Close on shutdown
+ * pool.close();
  * ```
  */
 export class MssqlPool implements Disposable, AsyncDisposable {

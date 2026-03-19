@@ -4,9 +4,14 @@
  * ```ts
  * import * as mssql from "@tsdrivers/mssql";
  *
+ * // Long-lived pool — close explicitly when the application shuts down
  * const pool = await mssql.createPool("Server=localhost;Database=mydb;User Id=sa;Password=pass;");
  * const rows = await pool.query<{ name: string }>("SELECT name FROM Users");
- * await pool.close();
+ * pool.close();
+ *
+ * // Short-lived pool or connection — auto-closed via await using
+ * await using cn = await mssql.connect(connectionString);
+ * const users = await cn.query<{ name: string }>("SELECT name FROM Users");
  * ```
  *
  * @module
@@ -19,9 +24,9 @@ import { MssqlConnection } from "./core/connection.ts";
 import { MssqlPool } from "./core/pool.ts";
 import { getFfi } from "./ffi/resolve.ts";
 
-// ── FFI access ────────────────────────────────────────────────
+// ── FFI access (advanced) ─────────────────────────────────────
 
-export { disableExitHandler, getFfi, loadLibrary } from "./ffi/resolve.ts";
+export { disableExitHandler, loadLibrary } from "./ffi/resolve.ts";
 
 // ── Public API ────────────────────────────────────────────────
 
@@ -107,7 +112,12 @@ export { newCOMB } from "./core/comb.ts";
 export { ExecResult } from "./core/exec_result.ts";
 export { Transaction } from "./core/transaction.ts";
 export { QueryStream } from "./core/stream.ts";
-export { PooledQueryStream } from "./core/pool.ts";
+export { MssqlConnection } from "./core/connection.ts";
+export {
+  MssqlPool,
+  PoolBulkInsertBuilder,
+  PooledQueryStream,
+} from "./core/pool.ts";
 export { BulkInsertBuilder } from "./core/bulk.ts";
 export {
   FilestreamDuplex,
@@ -115,9 +125,11 @@ export {
   FilestreamWritable,
 } from "./core/filestream.ts";
 export type { FilestreamWebResult } from "./core/filestream.ts";
+export {
+  DisposableReadableStream,
+  DisposableWritableStream,
+} from "./core/blob.ts";
 export type { BlobTarget } from "./core/blob.ts";
-export { MssqlConnection } from "./core/connection.ts";
-export { MssqlPool } from "./core/pool.ts";
 export { parseConnection } from "./core/config.ts";
 export {
   downloadUrl,
@@ -134,9 +146,9 @@ export type {
   FilestreamMode,
   IsolationLevel,
   MssqlConfig,
-  NormalizedConfig,
   Params,
   ParamValue,
   SqlType,
+  StreamOptions,
   TypedParam,
 } from "./core/types.ts";

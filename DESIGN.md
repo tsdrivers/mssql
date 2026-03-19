@@ -107,7 +107,6 @@ const id = mssql.newCOMB();
 // FILESTREAM (Windows only, lazy dependency check)
 await using fs = cn.openFilestream(path, txContext, "read");
 const data = await fs.readAll();
-
 ```
 
 ## Connection String Formats

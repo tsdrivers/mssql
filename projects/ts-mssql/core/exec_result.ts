@@ -3,7 +3,7 @@
  * @module
  */
 
-/** Raw JSON shape returned by the mssql_exec FFI function. */
+/** @internal Raw JSON shape returned by the mssql_exec FFI function. */
 export interface ExecResultRaw {
   rowsAffected: number;
   resultSets: Record<string, unknown>[][];
